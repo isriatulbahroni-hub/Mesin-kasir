@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/formatters.dart';
 import '../providers/cart_provider.dart';
+import '../providers/held_cart_provider.dart';
 import 'checkout_sheet.dart';
 
 class CartPanel extends ConsumerWidget {
@@ -29,6 +30,12 @@ class CartPanel extends ConsumerWidget {
                 Text('Keranjang (${cart.itemCount})',
                     style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
                 const Spacer(),
+                if (cart.lines.isNotEmpty)
+                  IconButton(
+                    tooltip: 'Tahan transaksi',
+                    icon: const Icon(Icons.pause_circle_outline_rounded, size: 22),
+                    onPressed: () => _holdCart(context, ref),
+                  ),
                 if (cart.lines.isNotEmpty)
                   TextButton(
                     onPressed: () => ref.read(cartProvider.notifier).clear(),
@@ -59,6 +66,36 @@ class CartPanel extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _holdCart(BuildContext context, WidgetRef ref) async {
+    final ctrl = TextEditingController();
+    final label = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Tahan transaksi'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Nama/label (opsional)', hintText: 'mis. Meja 3, Budi'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, ctrl.text), child: const Text('Tahan')),
+        ],
+      ),
+    );
+    if (label == null || !context.mounted) return; // dibatalkan
+    try {
+      await ref.read(heldCartControllerProvider).hold(label: label);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Transaksi ditahan. Keranjang dikosongkan.')));
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal menahan transaksi: $e')));
+      }
+    }
   }
 }
 

@@ -8,7 +8,9 @@ import '../../core/theme/app_colors.dart';
 import '../auth/providers/auth_provider.dart';
 import 'barcode_lookup.dart';
 import 'providers/cart_provider.dart';
+import 'providers/held_cart_provider.dart';
 import 'widgets/cart_panel.dart';
+import 'widgets/held_carts_sheet.dart';
 import 'widgets/product_grid.dart';
 
 class PosScreen extends ConsumerStatefulWidget {
@@ -83,6 +85,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
           error: (_, __) => const Text('Kasir Pro'),
         ),
         actions: [
+          _HeldCartsButton(),
           staffAsync.maybeWhen(
             data: (staff) => staff != null
                 ? Padding(
@@ -125,6 +128,28 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                 : const _MobilePosLayout(),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _HeldCartsButton extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final count = ref.watch(heldCartsProvider).valueOrNull?.length ?? 0;
+    return IconButton(
+      tooltip: 'Transaksi tertahan',
+      icon: Badge(
+        label: Text('$count'),
+        isLabelVisible: count > 0,
+        child: const Icon(Icons.pause_circle_outline_rounded),
+      ),
+      onPressed: () => showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: AppColors.surface,
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        builder: (_) => const HeldCartsSheet(),
       ),
     );
   }

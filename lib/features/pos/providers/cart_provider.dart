@@ -91,6 +91,12 @@ class CartController extends StateNotifier<CartState> {
   }
 
   void clear() => state = const CartState();
+
+  /// Mengganti seluruh isi keranjang sekaligus — dipakai saat melanjutkan
+  /// (resume) transaksi yang sebelumnya ditahan (hold).
+  void replaceAll({required List<CartLine> lines, int transactionDiscount = 0, String note = ''}) {
+    state = CartState(lines: lines, transactionDiscount: transactionDiscount, note: note);
+  }
 }
 
 final cartProvider = StateNotifierProvider<CartController, CartState>(
