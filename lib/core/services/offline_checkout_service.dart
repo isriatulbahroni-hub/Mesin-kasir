@@ -1,25 +1,11 @@
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'local_pos_database.dart';
 
 class OfflineCheckoutService {
   OfflineCheckoutService({SupabaseClient? client}) : _supabase = client ?? Supabase.instance.client;
-  static const _queueKey = 'offline_checkout_queue_v2';
   final SupabaseClient _supabase;
-
-  String _newIdempotencyKey() => '${DateTime.now().toUtc().microsecondsSinceEpoch}-${_supabase.auth.currentUser?.id ?? 'device'}';
-
-  Future<List<Map<String, dynamic>>> _readQueue() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_queueKey);
-    if (raw == null || raw.isEmpty) return [];
-    return List<Map<String, dynamic>>.from(jsonDecode(raw));
-  }
-
-  Future<void> _writeQueue(List<Map<String, dynamic>> queue) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_queueKey, jsonEncode(queue));
-  }
+  final _local = LocalPosDatabase.instance;
 
   Future<String> checkout({
     required String storeId,
@@ -28,47 +14,46 @@ class OfflineCheckoutService {
     required int paidAmount,
     required String paymentMethod,
     List<Map<String, dynamic>>? payments,
-    String? idempotencyKey,
+    required String idempotencyKey,
   }) async {
-    final key = idempotencyKey ?? _newIdempotencyKey();
     final payload = <String, dynamic>{
       'store_id': storeId, 'shift_id': shiftId, 'items': items,
       'paid_amount': paidAmount, 'payment_method': paymentMethod,
-      'payments': payments, 'idempotency_key': key,
+      'payments': payments, 'idempotency_key': idempotencyKey,
       'created_at': DateTime.now().toUtc().toIso8601String(),
     };
     try {
       final result = await _supabase.rpc('checkout_transaction', params: {
         'p_store_id': storeId, 'p_shift_id': shiftId, 'p_items': items,
         'p_paid_amount': paidAmount, 'p_payment_method': paymentMethod,
-        'p_payments': payments, 'p_idempotency_key': key,
+        'p_payments': payments, 'p_idempotency_key': idempotencyKey,
       }).timeout(const Duration(seconds: 15));
-      return result as String;
+      return result.toString();
     } catch (_) {
-      final queue = await _readQueue();
-      if (!queue.any((e) => e['idempotency_key'] == key)) {
-        queue.add(payload);
-        await _writeQueue(queue);
-      }
+      await _local.enqueue(key: idempotencyKey, storeId: storeId, shiftId: shiftId, payload: jsonEncode(payload));
       rethrow;
     }
   }
 
-  Future<int> pendingCount() async => (await _readQueue()).length;
+  Future<int> pendingCount() async => (await _local.queue()).length;
 
   Future<void> sync() async {
-    final queue = await _readQueue();
-    final remaining = <Map<String, dynamic>>[];
-    for (final item in queue) {
+    final queue = await _local.queue();
+    for (final row in queue) {
+      final key = row['idempotency_key'] as String;
       try {
+        final payload = jsonDecode(row['payload'] as String) as Map<String, dynamic>;
         await _supabase.rpc('checkout_transaction', params: {
-          'p_store_id': item['store_id'], 'p_shift_id': item['shift_id'],
-          'p_items': item['items'], 'p_paid_amount': item['paid_amount'],
-          'p_payment_method': item['payment_method'], 'p_payments': item['payments'],
-          'p_idempotency_key': item['idempotency_key'],
+          'p_store_id': payload['store_id'], 'p_shift_id': payload['shift_id'],
+          'p_items': payload['items'], 'p_paid_amount': payload['paid_amount'],
+          'p_payment_method': payload['payment_method'], 'p_payments': payload['payments'],
+          // Critical: retries always reuse the original key.
+          'p_idempotency_key': key,
         }).timeout(const Duration(seconds: 15));
-      } catch (_) { remaining.add(item); }
+        await _local.remove(key);
+      } catch (e) {
+        await _local.fail(key, e.toString());
+      }
     }
-    await _writeQueue(remaining);
   }
 }
