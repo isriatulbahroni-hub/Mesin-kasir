@@ -42,7 +42,11 @@ class CheckoutController extends StateNotifier<AsyncValue<void>> {
   final Ref _ref;
   final _uuid = const Uuid();
 
-  Future<CheckoutResult> checkout({required PaymentMethod method, required int paidAmount}) async {
+  Future<CheckoutResult> checkout({
+    required PaymentMethod method,
+    required int paidAmount,
+    List<Map<String, dynamic>>? splitPayments,
+  }) async {
     state = const AsyncLoading();
     final cart = _ref.read(cartProvider);
     if (cart.lines.isEmpty) return CheckoutResult.failure('Keranjang masih kosong.');
@@ -51,13 +55,16 @@ class CheckoutController extends StateNotifier<AsyncValue<void>> {
       if (staff == null) return CheckoutResult.failure('Sesi staff tidak ditemukan.');
       final shift = await _ref.read(activeShiftProvider.future);
       if (shift == null) return CheckoutResult.failure('Shift kasir belum dibuka.');
-      if (paidAmount <= 0) return CheckoutResult.failure('Nominal pembayaran harus lebih dari 0.');
+
+      final payments = splitPayments ?? [{'method': method.name, 'amount': paidAmount}];
+      final totalPaid = payments.fold<int>(0, (sum, p) => sum + (p['amount'] as int));
+      if (totalPaid <= 0) return CheckoutResult.failure('Nominal pembayaran harus lebih dari 0.');
+
       final items = cart.lines.map((l) => {'product_id': l.product.id, 'quantity': l.quantity, 'discount': l.discount}).toList();
-      final payments = [{'method': method.name, 'amount': paidAmount}];
       final key = _uuid.v4();
       final service = OfflineCheckoutService(client: _ref.read(supabaseClientProvider));
       try {
-        final txId = await service.checkout(storeId: staff.storeId, shiftId: shift.id, items: items, paidAmount: paidAmount, paymentMethod: method.name, payments: payments, idempotencyKey: key, transactionDiscount: cart.transactionDiscount);
+        final txId = await service.checkout(storeId: staff.storeId, shiftId: shift.id, items: items, paidAmount: totalPaid, paymentMethod: method.name, payments: payments, idempotencyKey: key, transactionDiscount: cart.transactionDiscount);
         String? invoiceNo;
         try {
           final row = await _ref.read(supabaseClientProvider).from('transactions').select('invoice_no').eq('id', txId).maybeSingle();

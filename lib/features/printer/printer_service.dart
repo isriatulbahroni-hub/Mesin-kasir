@@ -54,6 +54,10 @@ class PrinterService {
         .from('transaction_items')
         .select()
         .eq('transaction_id', transactionId);
+    final payments = await client
+        .from('transaction_payments')
+        .select()
+        .eq('transaction_id', transactionId);
     final store = await client.from('stores').select().eq('id', tx['store_id']).single();
 
     await printReceiptRaw(
@@ -68,6 +72,7 @@ class PrinterService {
       paid: (tx['paid_amount'] as num).toInt(),
       change: (tx['change_amount'] as num?)?.toInt() ?? 0,
       paymentMethod: tx['payment_method'] as String,
+      payments: (payments as List).cast<Map<String, dynamic>>(),
     );
   }
 
@@ -83,6 +88,7 @@ class PrinterService {
     required int paid,
     required int change,
     required String paymentMethod,
+    List<Map<String, dynamic>>? payments,
   }) async {
     final connected = await PrintBluetoothThermal.connectionStatus;
     if (!connected) {
@@ -131,10 +137,21 @@ class PrinterService {
       PosColumn(text: 'TOTAL', width: 6, styles: const PosStyles(bold: true)),
       PosColumn(text: Formatters.rupiah(total), width: 6, styles: const PosStyles(align: PosAlign.right, bold: true)),
     ]));
-    bytes.addAll(generator.row([
-      PosColumn(text: 'Bayar (${paymentMethod.toUpperCase()})', width: 6),
-      PosColumn(text: Formatters.rupiah(paid), width: 6, styles: const PosStyles(align: PosAlign.right)),
-    ]));
+    if (payments != null && payments.length > 1) {
+      for (final p in payments) {
+        final label = (p['method'] as String).toUpperCase();
+        final amount = (p['amount'] as num).toInt();
+        bytes.addAll(generator.row([
+          PosColumn(text: 'Bayar ($label)', width: 6),
+          PosColumn(text: Formatters.rupiah(amount), width: 6, styles: const PosStyles(align: PosAlign.right)),
+        ]));
+      }
+    } else {
+      bytes.addAll(generator.row([
+        PosColumn(text: 'Bayar (${paymentMethod.toUpperCase()})', width: 6),
+        PosColumn(text: Formatters.rupiah(paid), width: 6, styles: const PosStyles(align: PosAlign.right)),
+      ]));
+    }
     bytes.addAll(generator.row([
       PosColumn(text: 'Kembali', width: 6),
       PosColumn(text: Formatters.rupiah(change), width: 6, styles: const PosStyles(align: PosAlign.right)),

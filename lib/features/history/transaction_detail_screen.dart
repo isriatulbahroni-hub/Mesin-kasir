@@ -24,6 +24,13 @@ final _transactionItemsProvider =
   return (data as List).map((e) => TransactionItem.fromJson(e)).toList();
 });
 
+final _transactionPaymentsProvider =
+    FutureProvider.autoDispose.family<List<Map<String, dynamic>>, String>((ref, id) async {
+  final client = ref.watch(supabaseClientProvider);
+  final data = await client.from('transaction_payments').select().eq('transaction_id', id);
+  return (data as List).cast<Map<String, dynamic>>();
+});
+
 class TransactionDetailScreen extends ConsumerWidget {
   final String transactionId;
   const TransactionDetailScreen({super.key, required this.transactionId});
@@ -81,6 +88,22 @@ class TransactionDetailScreen extends ConsumerWidget {
             _Row('Dibayar', Formatters.rupiah(tx.paidAmount)),
             _Row('Kembalian', Formatters.rupiah(tx.changeAmount)),
             _Row('Metode', tx.paymentMethod.label),
+            if (tx.paymentMethod == PaymentMethod.campuran)
+              Consumer(builder: (context, ref, _) {
+                final paymentsAsync = ref.watch(_transactionPaymentsProvider(transactionId));
+                return paymentsAsync.maybeWhen(
+                  data: (payments) => Padding(
+                    padding: const EdgeInsets.only(left: 12, top: 4),
+                    child: Column(
+                      children: [
+                        for (final p in payments)
+                          _Row('· ${(p['method'] as String).toUpperCase()}', Formatters.rupiah((p['amount'] as num).toInt())),
+                      ],
+                    ),
+                  ),
+                  orElse: () => const SizedBox.shrink(),
+                );
+              }),
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(10),

@@ -3,7 +3,8 @@ enum PaymentMethod {
   qris,
   transfer,
   kartu,
-  lainnya;
+  lainnya,
+  campuran;
 
   static PaymentMethod fromString(String value) => PaymentMethod.values
       .firstWhere((e) => e.name == value, orElse: () => PaymentMethod.tunai);
@@ -20,6 +21,8 @@ enum PaymentMethod {
         return 'Kartu';
       case PaymentMethod.lainnya:
         return 'Lainnya';
+      case PaymentMethod.campuran:
+        return 'Split/Campuran';
     }
   }
 }
