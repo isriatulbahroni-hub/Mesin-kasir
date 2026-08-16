@@ -6,6 +6,9 @@ class ShiftController extends StateNotifier<AsyncValue<void>> {
   ShiftController(this._ref) : super(const AsyncData(null));
   final Ref _ref;
 
+  /// Buka shift lewat RPC `open_shift` — server yang memastikan staff valid
+  /// dan belum ada shift lain yang masih terbuka (dijaga juga oleh unique
+  /// index parsial `uq_shifts_one_open_per_staff` di DB).
   Future<String?> openShift({required int openingCash}) async {
     state = const AsyncLoading();
     try {
@@ -13,10 +16,9 @@ class ShiftController extends StateNotifier<AsyncValue<void>> {
       if (staff == null) return 'Sesi staff tidak ditemukan.';
 
       final client = _ref.read(supabaseClientProvider);
-      await client.from('shifts').insert({
-        'store_id': staff.storeId,
-        'staff_id': staff.id,
-        'opening_cash': openingCash,
+      await client.rpc('open_shift', params: {
+        'p_staff_id': staff.id,
+        'p_opening_cash': openingCash,
       });
 
       _ref.invalidate(activeShiftProvider);
@@ -24,54 +26,41 @@ class ShiftController extends StateNotifier<AsyncValue<void>> {
       return null;
     } on Object catch (e) {
       state = AsyncError(e, StackTrace.current);
-      return 'Gagal membuka shift: $e';
+      return _friendly(e, 'membuka');
     }
   }
 
-  /// Tutup shift + hitung selisih kas.
-  /// expected_cash dihitung dari opening_cash + total penjualan tunai selama shift.
+  /// Tutup shift lewat RPC `close_shift` — expected_cash & cash_difference
+  /// dihitung SERVER-SIDE dari transaksi yang shift_id-nya cocok dengan shift
+  /// ini persis (bukan lagi tebak-tebakan staff_id + rentang waktu), jadi
+  /// tidak mungkin salah hitung transaksi dari shift lain.
   Future<String?> closeShift({
     required String shiftId,
-    required int openingCash,
-    required DateTime openedAt,
     required int closingCash,
   }) async {
     state = const AsyncLoading();
     try {
-      final staff = await _ref.read(currentStaffProvider.future);
-      if (staff == null) return 'Sesi staff tidak ditemukan.';
-
       final client = _ref.read(supabaseClientProvider);
-
-      // Jumlahkan transaksi tunai (completed) milik staff ini sejak shift dibuka.
-      final txRows = await client
-          .from('transactions')
-          .select('total, payment_method, status')
-          .eq('staff_id', staff.id)
-          .eq('payment_method', 'tunai')
-          .eq('status', 'completed')
-          .gte('created_at', openedAt.toIso8601String());
-
-      final cashSales = (txRows as List)
-          .fold<int>(0, (sum, row) => sum + ((row['total'] as num).toInt()));
-
-      final expectedCash = openingCash + cashSales;
-      final difference = closingCash - expectedCash;
-
-      await client.from('shifts').update({
-        'closing_cash': closingCash,
-        'expected_cash': expectedCash,
-        'cash_difference': difference,
-        'closed_at': DateTime.now().toUtc().toIso8601String(),
-      }).eq('id', shiftId);
+      await client.rpc('close_shift', params: {
+        'p_shift_id': shiftId,
+        'p_closing_cash': closingCash,
+      });
 
       _ref.invalidate(activeShiftProvider);
       state = const AsyncData(null);
       return null;
     } on Object catch (e) {
       state = AsyncError(e, StackTrace.current);
-      return 'Gagal menutup shift: $e';
+      return _friendly(e, 'menutup');
     }
+  }
+
+  String _friendly(Object e, String action) {
+    final msg = e.toString();
+    if (msg.contains('masih punya shift')) return 'Kamu masih punya shift yang belum ditutup.';
+    if (msg.contains('tidak ditemukan atau sudah ditutup')) return 'Shift ini sudah ditutup sebelumnya.';
+    if (msg.contains('tidak berhak')) return 'Kamu tidak berhak menutup shift ini.';
+    return 'Gagal $action shift: $e';
   }
 }
 

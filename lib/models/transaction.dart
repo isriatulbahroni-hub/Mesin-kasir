@@ -56,6 +56,7 @@ class Transaction {
   final String id;
   final String storeId;
   final String? staffId;
+  final String? shiftId;
   final String invoiceNo;
   final int subtotal;
   final int discount;
@@ -72,6 +73,7 @@ class Transaction {
     required this.id,
     required this.storeId,
     this.staffId,
+    this.shiftId,
     required this.invoiceNo,
     required this.subtotal,
     required this.discount,
@@ -89,6 +91,7 @@ class Transaction {
         id: json['id'] as String,
         storeId: json['store_id'] as String,
         staffId: json['staff_id'] as String?,
+        shiftId: json['shift_id'] as String?,
         invoiceNo: json['invoice_no'] as String,
         subtotal: (json['subtotal'] as num).toInt(),
         discount: (json['discount'] as num?)?.toInt() ?? 0,

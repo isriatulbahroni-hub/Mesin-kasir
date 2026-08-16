@@ -43,19 +43,35 @@ final reportsSummaryProvider = FutureProvider.autoDispose<ReportsSummary>((ref) 
   final txList = txRows as List;
   final txIds = txList.map((r) => r['id'] as String).toList();
 
-  // Profit = subtotal item (price*qty - diskon item) - cost_price*qty, dijumlah semua item.
+  // PENTING: profit dihitung per-transaksi sebagai (transactions.total - total modal),
+  // BUKAN dijumlah dari harga per-item dikurangi diskon per-item saja.
+  // transactions.total sudah bersih dari SEMUA diskon (diskon per-item MAUPUN
+  // diskon transaksi/global). Kalau modal dikurangkan dari harga per-item saja
+  // tanpa memperhitungkan diskon transaksi, profit akan tampak lebih besar
+  // dari yang sebenarnya (diskon transaksi "hilang" dari perhitungan).
   int totalProfit = 0;
   if (txIds.isNotEmpty) {
+    final totalByTxId = <String, int>{
+      for (final row in txList) row['id'] as String: (row['total'] as num).toInt(),
+    };
+
     final itemRows = await client
         .from('transaction_items')
-        .select('price, cost_price, quantity, discount')
+        .select('transaction_id, cost_price, quantity')
         .inFilter('transaction_id', txIds);
+
+    final costByTxId = <String, int>{};
     for (final row in (itemRows as List)) {
-      final price = (row['price'] as num).toInt();
+      final txId = row['transaction_id'] as String;
       final cost = (row['cost_price'] as num).toInt();
       final qty = (row['quantity'] as num).toInt();
-      final discount = (row['discount'] as num?)?.toInt() ?? 0;
-      totalProfit += (price * qty - discount) - (cost * qty);
+      costByTxId[txId] = (costByTxId[txId] ?? 0) + (cost * qty);
+    }
+
+    for (final txId in txIds) {
+      final revenue = totalByTxId[txId] ?? 0; // sudah net semua diskon
+      final cost = costByTxId[txId] ?? 0;
+      totalProfit += revenue - cost;
     }
   }
 

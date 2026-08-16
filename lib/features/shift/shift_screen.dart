@@ -181,8 +181,6 @@ class _ActiveShiftViewState extends ConsumerState<_ActiveShiftView> {
               Navigator.pop(ctx);
               final error = await ref.read(shiftControllerProvider.notifier).closeShift(
                     shiftId: widget.shift.id,
-                    openingCash: widget.shift.openingCash,
-                    openedAt: widget.shift.openedAt,
                     closingCash: closingCash,
                   );
               if (!mounted) return;

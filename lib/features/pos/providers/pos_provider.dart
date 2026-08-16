@@ -89,52 +89,62 @@ class CheckoutController extends StateNotifier<AsyncValue<void>> {
 
       final client = _ref.read(supabaseClientProvider);
 
-      // 1) Insert transaksi header. invoice_no & created_at di-generate trigger DB.
-      final txRow = await client
-          .from('transactions')
-          .insert({
-            'store_id': staff.storeId,
-            'staff_id': staff.id,
-            'subtotal': cart.subtotal,
-            'discount': cart.totalDiscount,
-            'tax': 0,
-            'total': cart.total,
-            'paid_amount': paidAmount,
-            'change_amount': (paidAmount - cart.total).clamp(0, paidAmount),
-            'payment_method': method.name,
-            'status': 'completed',
-            'note': cart.note.isEmpty ? null : cart.note,
-          })
-          .select()
-          .single();
-
-      final transaction = Transaction.fromJson(txRow);
-
-      // 2) Insert item-item transaksi. Trigger DB akan otomatis potong stok
-      //    produk & catat stock_movements (type='sale') per baris yang di-insert.
+      // Satu panggilan RPC atomic: header transaksi + semua item di-insert
+      // dalam SATU transaksi database. Kalau stok produk manapun tidak cukup
+      // (dicek trigger DB secara atomic, aman dari race condition dua kasir
+      // menjual barang yang sama bersamaan), seluruh checkout otomatis
+      // dibatalkan (rollback) — tidak ada transaksi "setengah jadi".
+      // Validasi shift & paid_amount >= total juga ditegakkan di server,
+      // bukan cuma di UI.
       final itemsPayload = cart.lines
           .map((l) => {
-                'transaction_id': transaction.id,
                 'product_id': l.product.id,
                 'product_name': l.product.name,
                 'price': l.product.sellingPrice,
                 'cost_price': l.product.costPrice,
                 'quantity': l.quantity,
                 'discount': l.discount,
-                'subtotal': l.netSubtotal,
               })
           .toList();
 
-      await client.from('transaction_items').insert(itemsPayload);
+      final txRow = await client.rpc('checkout_transaction', params: {
+        'p_staff_id': staff.id,
+        'p_shift_id': activeShift.id,
+        'p_payment_method': method.name,
+        'p_paid_amount': paidAmount,
+        'p_transaction_discount': cart.transactionDiscount,
+        'p_note': cart.note.isEmpty ? null : cart.note,
+        'p_items': itemsPayload,
+      }).single();
+
+      final transaction = Transaction.fromJson(txRow);
 
       _ref.read(cartProvider.notifier).clear();
       state = const AsyncData(null);
       return CheckoutResult.success(transaction.invoiceNo, transaction.id);
     } on Object catch (e) {
       state = AsyncError(e, StackTrace.current);
-      return CheckoutResult.failure('Gagal menyimpan transaksi: $e');
+      return CheckoutResult.failure(_friendlyCheckoutError(e));
     }
   }
+}
+
+String _friendlyCheckoutError(Object e) {
+  final msg = e.toString();
+  if (msg.contains('tidak cukup')) {
+    // Pesan dari trigger DB sudah dalam Bahasa Indonesia & spesifik nama produk.
+    final match = RegExp(r'Stok "([^"]+)" tidak cukup \(tersisa (\d+), diminta (\d+)\)').firstMatch(msg);
+    if (match != null) {
+      return 'Stok "${match.group(1)}" tidak cukup (tersisa ${match.group(2)}, diminta ${match.group(3)}).';
+    }
+  }
+  if (msg.contains('Shift kasir tidak valid') || msg.contains('sudah ditutup')) {
+    return 'Shift sudah tidak aktif. Buka shift baru dulu.';
+  }
+  if (msg.contains('kurang dari total')) {
+    return 'Uang dibayar kurang dari total transaksi.';
+  }
+  return 'Gagal menyimpan transaksi: $e';
 }
 
 final checkoutControllerProvider =
