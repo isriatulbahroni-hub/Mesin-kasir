@@ -45,7 +45,7 @@ final selectedCategoryProvider = StateProvider.autoDispose<String?>((ref) => nul
 
 final productSearchQueryProvider = StateProvider.autoDispose<String>((ref) => '');
 
-/// Hasil checkout: sukses berisi invoice_no, gagal berisi pesan error.
+/// Hasil checkout: sukses berisi invoice_no.
 class CheckoutResult {
   final bool success;
   final String? invoiceNo;
@@ -78,40 +78,48 @@ class CheckoutController extends StateNotifier<AsyncValue<void>> {
     try {
       final staff = await _ref.read(currentStaffProvider.future);
       if (staff == null) {
+        state = const AsyncData(null);
         return CheckoutResult.failure('Sesi staff tidak ditemukan. Coba login ulang.');
       }
 
       final activeShift = await _ref.read(activeShiftProvider.future);
       if (activeShift == null) {
+        state = const AsyncData(null);
         return CheckoutResult.failure(
             'Shift kasir belum dibuka. Buka shift dulu di tab Shift sebelum transaksi.');
       }
 
+      if (paidAmount <= 0) {
+        state = const AsyncData(null);
+        return CheckoutResult.failure('Nominal pembayaran harus lebih dari 0.');
+      }
+
       final client = _ref.read(supabaseClientProvider);
 
-      // Satu panggilan RPC atomic: header transaksi + semua item di-insert
-      // dalam SATU transaksi database. Kalau stok produk manapun tidak cukup
-      // (dicek trigger DB secara atomic, aman dari race condition dua kasir
-      // menjual barang yang sama bersamaan), seluruh checkout otomatis
-      // dibatalkan (rollback) — tidak ada transaksi "setengah jadi".
-      // Validasi shift & paid_amount >= total juga ditegakkan di server,
-      // bukan cuma di UI.
+      // Server authoritative: harga/nama/cost_price diambil dari products oleh
+      // RPC. Client hanya mengirim product_id, quantity, dan discount.
       final itemsPayload = cart.lines
           .map((l) => {
                 'product_id': l.product.id,
-                'product_name': l.product.name,
-                'price': l.product.sellingPrice,
-                'cost_price': l.product.costPrice,
                 'quantity': l.quantity,
                 'discount': l.discount,
               })
           .toList();
 
+      // checkout_transaction menerima ARRAY pembayaran, bukan pasangan
+      // payment_method/paid_amount. Ini juga membuat split-payment kompatibel
+      // dengan schema transaction_payments.
+      final paymentsPayload = [
+        {
+          'method': method.name,
+          'amount': paidAmount,
+        }
+      ];
+
       final txRow = await client.rpc('checkout_transaction', params: {
         'p_staff_id': staff.id,
         'p_shift_id': activeShift.id,
-        'p_payment_method': method.name,
-        'p_paid_amount': paidAmount,
+        'p_payments': paymentsPayload,
         'p_transaction_discount': cart.transactionDiscount,
         'p_note': cart.note.isEmpty ? null : cart.note,
         'p_items': itemsPayload,
@@ -122,8 +130,8 @@ class CheckoutController extends StateNotifier<AsyncValue<void>> {
       _ref.read(cartProvider.notifier).clear();
       state = const AsyncData(null);
       return CheckoutResult.success(transaction.invoiceNo, transaction.id);
-    } on Object catch (e) {
-      state = AsyncError(e, StackTrace.current);
+    } on Object catch (e, st) {
+      state = AsyncError(e, st);
       return CheckoutResult.failure(_friendlyCheckoutError(e));
     }
   }
@@ -131,12 +139,8 @@ class CheckoutController extends StateNotifier<AsyncValue<void>> {
 
 String _friendlyCheckoutError(Object e) {
   final msg = e.toString();
-  if (msg.contains('tidak cukup')) {
-    // Pesan dari trigger DB sudah dalam Bahasa Indonesia & spesifik nama produk.
-    final match = RegExp(r'Stok "([^"]+)" tidak cukup \(tersisa (\d+), diminta (\d+)\)').firstMatch(msg);
-    if (match != null) {
-      return 'Stok "${match.group(1)}" tidak cukup (tersisa ${match.group(2)}, diminta ${match.group(3)}).';
-    }
+  if (msg.contains('Stok produk') && msg.contains('tidak mencukupi')) {
+    return msg.replaceFirst(RegExp(r'^.*?Exception: '), '');
   }
   if (msg.contains('Shift kasir tidak valid') || msg.contains('sudah ditutup')) {
     return 'Shift sudah tidak aktif. Buka shift baru dulu.';
@@ -144,7 +148,10 @@ String _friendlyCheckoutError(Object e) {
   if (msg.contains('kurang dari total')) {
     return 'Uang dibayar kurang dari total transaksi.';
   }
-  return 'Gagal menyimpan transaksi: $e';
+  if (msg.contains('Authentication diperlukan')) {
+    return 'Sesi login sudah berakhir. Silakan login ulang.';
+  }
+  return 'Gagal menyimpan transaksi. ${msg.replaceFirst(RegExp(r'^.*?Exception: '), '')}';
 }
 
 final checkoutControllerProvider =
