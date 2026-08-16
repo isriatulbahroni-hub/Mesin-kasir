@@ -1,19 +1,75 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/providers/session_provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/providers/auth_provider.dart';
+import 'barcode_lookup.dart';
 import 'providers/cart_provider.dart';
 import 'widgets/cart_panel.dart';
 import 'widgets/product_grid.dart';
 
-class PosScreen extends ConsumerWidget {
+class PosScreen extends ConsumerStatefulWidget {
   const PosScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PosScreen> createState() => _PosScreenState();
+}
+
+/// Scanner hardware (USB/Bluetooth keyboard-wedge) "mengetik" barcode lalu
+/// menekan Enter, jauh lebih cepat daripada ketikan manusia (biasanya <30ms
+/// antar-karakter vs >80ms untuk mengetik biasa). Kita bedakan keduanya dari
+/// kecepatan ketik, bukan dari fokus widget, supaya tetap berfungsi walau
+/// tidak ada TextField yang sedang fokus dan tidak mengganggu pencarian
+/// produk manual di ProductGrid.
+class _PosScreenState extends ConsumerState<PosScreen> {
+  final StringBuffer _buffer = StringBuffer();
+  DateTime? _lastKeyAt;
+  static const _maxGap = Duration(milliseconds: 60);
+
+  @override
+  void initState() {
+    super.initState();
+    HardwareKeyboard.instance.addHandler(_onHardwareKey);
+  }
+
+  @override
+  void dispose() {
+    HardwareKeyboard.instance.removeHandler(_onHardwareKey);
+    super.dispose();
+  }
+
+  bool _onHardwareKey(KeyEvent event) {
+    if (event is! KeyDownEvent) return false;
+    final now = DateTime.now();
+    final gap = _lastKeyAt == null ? null : now.difference(_lastKeyAt!);
+    _lastKeyAt = now;
+
+    if (event.logicalKey == LogicalKeyboardKey.enter || event.logicalKey == LogicalKeyboardKey.numpadEnter) {
+      final code = _buffer.toString();
+      _buffer.clear();
+      // Ketikan manusia yang kebetulan diakhiri Enter (mis. di kolom lain)
+      // akan punya jeda antar-karakter yang jauh lebih lambat, jadi diabaikan.
+      if (code.length >= 3 && gap != null && gap <= _maxGap) {
+        handleScannedCode(context, ref, code);
+      }
+      return false;
+    }
+
+    final char = event.character;
+    if (char == null || char.isEmpty) return false;
+    if (gap != null && gap > _maxGap) _buffer.clear();
+    _buffer.write(char);
+    // Jaga buffer tetap wajar untuk mencegah menumpuk tanpa batas kalau tidak
+    // pernah diakhiri Enter (mis. saat mengetik biasa di kolom lain).
+    if (_buffer.length > 64) _buffer.clear();
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final storeAsync = ref.watch(currentStoreProvider);
     final staffAsync = ref.watch(currentStaffProvider);
     final shiftAsync = ref.watch(activeShiftProvider);

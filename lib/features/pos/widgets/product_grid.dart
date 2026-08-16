@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../models/product.dart';
+import '../barcode_lookup.dart';
 import '../providers/cart_provider.dart';
 import '../providers/pos_provider.dart';
 import '../barcode_scanner_screen.dart';
@@ -11,21 +12,12 @@ class ProductGrid extends ConsumerWidget {
   const ProductGrid({super.key});
 
   Future<void> _scan(BuildContext context, WidgetRef ref) async {
-    final code = await Navigator.push<String>(context, MaterialPageRoute(builder: (_) => const BarcodeScannerScreen()));
-    if (!context.mounted || code == null || code.isEmpty) return;
-    final products = ref.read(productsStreamProvider).valueOrNull ?? const <Product>[];
-    Product? found;
-    for (final p in products) { if (p.sku?.trim().toLowerCase() == code.trim().toLowerCase()) { found = p; break; } }
-    if (found == null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Barcode $code belum terdaftar.')));
-      return;
-    }
-    if (found.isOutOfStock) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Stok produk habis.')));
-      return;
-    }
-    ref.read(cartProvider.notifier).addProduct(found);
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${found.name} ditambahkan ke keranjang.')));
+    await Navigator.push(context, MaterialPageRoute(
+      builder: (_) => BarcodeScannerScreen(
+        continuous: true,
+        onCode: (code) => handleScannedCode(context, ref, code),
+      ),
+    ));
   }
 
   @override
