@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/providers/supabase_provider.dart';
@@ -56,12 +57,28 @@ class CheckoutController extends StateNotifier<AsyncValue<void>> {
       final key = _uuid.v4();
       final service = OfflineCheckoutService(client: _ref.read(supabaseClientProvider));
       try {
-        final txId = await service.checkout(storeId: staff.storeId, shiftId: shift.id, items: items, paidAmount: paidAmount, paymentMethod: method.name, payments: payments, idempotencyKey: key);
+        final txId = await service.checkout(storeId: staff.storeId, shiftId: shift.id, items: items, paidAmount: paidAmount, paymentMethod: method.name, payments: payments, idempotencyKey: key, transactionDiscount: cart.transactionDiscount);
+        String? invoiceNo;
+        try {
+          final row = await _ref.read(supabaseClientProvider).from('transactions').select('invoice_no').eq('id', txId).maybeSingle();
+          invoiceNo = row?['invoice_no'] as String?;
+        } catch (_) {
+          // Best effort only — the dialog falls back to showing just the transaction id.
+        }
         _ref.read(cartProvider.notifier).clear();
         state = const AsyncData(null);
-        return CheckoutResult.success(null, txId);
+        return CheckoutResult.success(invoiceNo, txId);
+      } on PostgrestException catch (e, st) {
+        // Server rejected the transaction (stok kurang, bayar kurang, dll).
+        // This is a real failure — must not be reported as queued/success.
+        state = AsyncError(e, st);
+        return CheckoutResult.failure(_friendlyCheckoutError(e));
+      } on AuthException catch (e, st) {
+        state = AsyncError(e, st);
+        return CheckoutResult.failure(_friendlyCheckoutError(e));
       } catch (_) {
-        // A timeout is not a failed sale: the exact key/payload is durably queued.
+        // A timeout/connectivity failure is not a failed sale: the exact
+        // key/payload is durably queued by OfflineCheckoutService.
         _ref.read(cartProvider.notifier).clear();
         state = const AsyncData(null);
         return CheckoutResult.queued();

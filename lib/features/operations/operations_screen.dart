@@ -26,8 +26,8 @@ class _OperationsScreenState extends ConsumerState<OperationsScreen> {
   }
   @override Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:const Text('Operasional POS')),body:_loading?const Center(child:CircularProgressIndicator()):RefreshIndicator(onRefresh:_load,child:ListView(padding:const EdgeInsets.all(16),children:[
     if(_error!=null)Card(child:Padding(padding:const EdgeInsets.all(12),child:Text(_error!))),
-    _section('Penjualan Hari Ini',Icons.point_of_sale,[_kv('Total transaksi','${_sales['transaction_count']??0}'),_kv('Omzet','Rp ${_sales['total_sales']??0}'),_kv('Diskon','Rp ${_sales['total_discount']??0}')]),
-    _section('Pembayaran',Icons.payments,_payments.map((p)=>_kv('${p['payment_method']??'-'}','Rp ${p['total_amount']??0}')).toList()),
+    _section('Penjualan Hari Ini',Icons.point_of_sale,[_kv('Total transaksi','${_sales['transaction_count']??0}'),_kv('Omzet','Rp ${_sales['net_sales']??0}'),_kv('Diskon','Rp ${_sales['discount_total']??0}')]),
+    _section('Pembayaran',Icons.payments,_payments.map((p)=>_kv('${p['method']??'-'}','Rp ${p['total_amount']??0}')).toList()),
     _section('Stok Menipis',Icons.warning,_lowStock.take(10).map((p)=>_kv('${p['name']??'-'}','Stok ${p['stock']??0}')).toList()),
     _section('Pelanggan',Icons.people,[_kv('Pelanggan aktif','${_customers.length}')]),
     _section('Promo Aktif',Icons.local_offer,[_kv('Promo berjalan','${_promotions.length}')]),

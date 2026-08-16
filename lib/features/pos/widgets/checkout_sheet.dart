@@ -128,25 +128,50 @@ class _CheckoutSheetState extends ConsumerState<CheckoutSheet> {
     }
 
     Navigator.pop(context); // tutup sheet pembayaran
-    _showSuccessDialog(result.invoiceNo!, result.transactionId!);
+    if (result.queued) {
+      _showQueuedDialog();
+    } else {
+      _showSuccessDialog(result.invoiceNo, result.transactionId);
+    }
   }
 
-  void _showSuccessDialog(String invoiceNo, String transactionId) {
+  void _showQueuedDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.cloud_off_rounded, color: AppColors.warning, size: 48),
+        title: const Text('Transaksi disimpan offline'),
+        content: const Text(
+            'Koneksi bermasalah. Transaksi sudah disimpan di perangkat dan akan otomatis '
+            'tersinkron begitu koneksi kembali normal.'),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSuccessDialog(String? invoiceNo, String? transactionId) {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         icon: const Icon(Icons.check_circle_rounded, color: AppColors.emerald600, size: 48),
         title: const Text('Transaksi berhasil'),
-        content: Text('No. Invoice: $invoiceNo'),
+        content: Text(invoiceNo != null ? 'No. Invoice: $invoiceNo' : 'Transaksi berhasil disimpan.'),
         actions: [
-          TextButton.icon(
-            icon: const Icon(Icons.print_outlined),
-            label: const Text('Cetak Struk'),
-            onPressed: () async {
-              await PrinterService.instance.printReceiptById(transactionId);
-            },
-          ),
+          if (transactionId != null)
+            TextButton.icon(
+              icon: const Icon(Icons.print_outlined),
+              label: const Text('Cetak Struk'),
+              onPressed: () async {
+                await PrinterService.instance.printReceiptById(transactionId);
+              },
+            ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Selesai'),

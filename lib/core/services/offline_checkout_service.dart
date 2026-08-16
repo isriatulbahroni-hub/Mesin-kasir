@@ -15,11 +15,13 @@ class OfflineCheckoutService {
     required String paymentMethod,
     List<Map<String, dynamic>>? payments,
     required String idempotencyKey,
+    int transactionDiscount = 0,
   }) async {
     final payload = <String, dynamic>{
       'store_id': storeId, 'shift_id': shiftId, 'items': items,
       'paid_amount': paidAmount, 'payment_method': paymentMethod,
       'payments': payments, 'idempotency_key': idempotencyKey,
+      'transaction_discount': transactionDiscount,
       'created_at': DateTime.now().toUtc().toIso8601String(),
     };
     try {
@@ -27,9 +29,21 @@ class OfflineCheckoutService {
         'p_store_id': storeId, 'p_shift_id': shiftId, 'p_items': items,
         'p_paid_amount': paidAmount, 'p_payment_method': paymentMethod,
         'p_payments': payments, 'p_idempotency_key': idempotencyKey,
+        'p_transaction_discount': transactionDiscount,
       }).timeout(const Duration(seconds: 15));
       return result.toString();
+    } on PostgrestException {
+      // The request reached the server and was rejected (stok kurang, bayar
+      // kurang, shift tidak aktif, dll). This is a real failure, not a
+      // connectivity problem — must NOT be queued for silent retry.
+      rethrow;
+    } on AuthException {
+      // Session/auth problem — surface immediately, don't queue.
+      rethrow;
     } catch (_) {
+      // Network/timeout failure: the request may never have reached the
+      // server, so it's safe to durably queue for retry with the same
+      // idempotency key.
       await _local.enqueue(key: idempotencyKey, storeId: storeId, shiftId: shiftId, payload: jsonEncode(payload));
       rethrow;
     }
@@ -47,6 +61,7 @@ class OfflineCheckoutService {
           'p_store_id': payload['store_id'], 'p_shift_id': payload['shift_id'],
           'p_items': payload['items'], 'p_paid_amount': payload['paid_amount'],
           'p_payment_method': payload['payment_method'], 'p_payments': payload['payments'],
+          'p_transaction_discount': payload['transaction_discount'] ?? 0,
           // Critical: retries always reuse the original key.
           'p_idempotency_key': key,
         }).timeout(const Duration(seconds: 15));

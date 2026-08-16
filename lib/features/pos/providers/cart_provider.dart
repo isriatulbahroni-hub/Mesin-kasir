@@ -81,7 +81,10 @@ class CartController extends StateNotifier<CartState> {
 
   void _setQuantity(int index, int qty) {
     final maxStock = state.lines[index].product.stock;
-    final clamped = (maxStock != null) ? qty.clamp(1, maxStock) : qty;
+    // maxStock can be 0 (out of stock); clamp(1, 0) would throw since
+    // lowerLimit > upperLimit, so the upper bound is never let drop below 1.
+    final upper = (maxStock == null) ? null : (maxStock < 1 ? 1 : maxStock);
+    final clamped = upper != null ? qty.clamp(1, upper) : qty;
     final lines = [...state.lines];
     lines[index] = lines[index].copyWith(quantity: clamped);
     state = state.copyWith(lines: lines);

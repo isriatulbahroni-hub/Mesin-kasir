@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../core/services/offline_sync_service.dart';
+import '../../core/services/offline_checkout_service.dart';
 import '../../core/providers/supabase_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -10,13 +10,13 @@ class OfflineSyncScreen extends ConsumerStatefulWidget {
 }
 
 class _OfflineSyncScreenState extends ConsumerState<OfflineSyncScreen> {
-  late final OfflineSyncService _sync;
+  late final OfflineCheckoutService _sync;
   int _pending = 0;
   bool _loading = true;
   String? _message;
 
   @override
-  void initState() { super.initState(); _sync = OfflineSyncService(ref.read(supabaseClientProvider)); _refresh(); }
+  void initState() { super.initState(); _sync = OfflineCheckoutService(client: ref.read(supabaseClientProvider)); _refresh(); }
 
   Future<void> _refresh() async {
     final n = await _sync.pendingCount();
@@ -25,9 +25,9 @@ class _OfflineSyncScreenState extends ConsumerState<OfflineSyncScreen> {
 
   Future<void> _syncNow() async {
     setState(() { _loading = true; _message = null; });
-    final errors = await _sync.syncPending();
+    await _sync.sync();
     await _refresh();
-    if (mounted) setState(() => _message = errors.isEmpty ? 'Semua transaksi offline berhasil disinkronkan.' : '${errors.length} transaksi masih menunggu koneksi/validasi.');
+    if (mounted) setState(() => _message = _pending == 0 ? 'Semua transaksi offline berhasil disinkronkan.' : '$_pending transaksi masih menunggu koneksi/validasi.');
   }
 
   @override
