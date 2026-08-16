@@ -15,18 +15,20 @@ import '../../features/shift/shift_screen.dart';
 import '../../features/printer/printer_settings_screen.dart';
 import '../../features/accounting/accounting_screen.dart';
 import '../../features/offline/offline_sync_screen.dart';
+import '../../features/operations/operations_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authNotifier = ValueNotifier<int>(0);
   ref.listen(authStateChangesProvider, (_, __) => authNotifier.value++);
   return GoRouter(
-    initialLocation: '/pos', refreshListenable: authNotifier,
-    redirect: (context,state) { final isLoggedIn=ref.read(currentUserProvider)!=null; final isLoggingIn=state.matchedLocation=='/login'; if(!isLoggedIn&&!isLoggingIn)return '/login'; if(isLoggedIn&&isLoggingIn)return '/pos'; return null; },
-    routes: [
+    initialLocation:'/pos', refreshListenable:authNotifier,
+    redirect:(context,state){final logged=ref.read(currentUserProvider)!=null;final login=state.matchedLocation=='/login';if(!logged&&!login)return '/login';if(logged&&login)return '/pos';return null;},
+    routes:[
       GoRoute(path:'/login',builder:(context,state)=>const LoginScreen()),
       ShellRoute(builder:(context,state,child)=>AppShell(child:child),routes:[
         GoRoute(path:'/pos',builder:(context,state)=>const PosScreen()),
         GoRoute(path:'/dashboard',builder:(context,state)=>const DashboardScreen()),
+        GoRoute(path:'/operations',builder:(context,state)=>const OperationsScreen()),
         GoRoute(path:'/products',builder:(context,state)=>const ProductsScreen(),routes:[GoRoute(path:'new',builder:(context,state)=>const ProductFormScreen()),GoRoute(path:'edit/:id',builder:(context,state)=>ProductFormScreen(productId:state.pathParameters['id']))]),
         GoRoute(path:'/reports',builder:(context,state)=>const ReportsScreen()),
         GoRoute(path:'/history',builder:(context,state)=>const HistoryScreen(),routes:[GoRoute(path:':id',builder:(context,state)=>TransactionDetailScreen(transactionId:state.pathParameters['id']!))]),
