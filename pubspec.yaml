@@ -1,0 +1,72 @@
+name: kasir_pro
+description: "Kasir Pro — Aplikasi Kasir/POS untuk UMKM Indonesia"
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State management
+  flutter_riverpod: ^2.5.1
+  riverpod_annotation: ^2.3.5
+
+  # Routing
+  go_router: ^14.2.7
+
+  # Backend
+  supabase_flutter: ^2.5.11
+
+  # UI / Fonts
+  google_fonts: ^6.2.1
+  cupertino_icons: ^1.0.8
+
+  # Charts (laporan 7 hari)
+  fl_chart: ^0.68.0
+
+  # Format angka & tanggal (Rupiah, dd MMM yyyy)
+  intl: ^0.19.0
+
+  # Printer Bluetooth ESC/POS
+  print_bluetooth_thermal: ^1.1.1
+  esc_pos_utils_plus: ^1.0.3
+  permission_handler: ^11.3.1
+
+  # Local session & util
+  shared_preferences: ^2.3.2
+  uuid: ^4.5.0
+  equatable: ^2.0.5
+
+  # Foto produk (disiapkan untuk fitur upload foto - roadmap)
+  image_picker: ^1.1.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  riverpod_generator: ^2.4.3
+  build_runner: ^2.4.13
+  custom_lint: ^0.6.7
+  riverpod_lint: ^2.3.13
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+
+  # Kalau nanti mau bundle font lokal (bukan google_fonts runtime fetch),
+  # taruh file .ttf di assets/fonts/ lalu uncomment blok ini:
+  # fonts:
+  #   - family: PlusJakartaSans
+  #     fonts:
+  #       - asset: assets/fonts/PlusJakartaSans-Regular.ttf
+  #       - asset: assets/fonts/PlusJakartaSans-Medium.ttf
+  #         weight: 500
+  #       - asset: assets/fonts/PlusJakartaSans-SemiBold.ttf
+  #         weight: 600
+  #       - asset: assets/fonts/PlusJakartaSans-Bold.ttf
+  #         weight: 700
+
+  assets:
+    - assets/
