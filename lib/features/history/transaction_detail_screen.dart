@@ -8,6 +8,7 @@ import '../../core/utils/formatters.dart';
 import '../../models/transaction.dart';
 import '../../models/transaction_item.dart';
 import '../printer/printer_service.dart';
+import '../receipt/digital_receipt_service.dart';
 import 'providers/transaction_action_provider.dart';
 
 final _transactionDetailProvider =
@@ -47,7 +48,13 @@ class TransactionDetailScreen extends ConsumerWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.print_outlined),
+            tooltip: 'Cetak Struk',
             onPressed: () => PrinterService.instance.printReceiptById(transactionId),
+          ),
+          IconButton(
+            icon: const Icon(Icons.share_outlined),
+            tooltip: 'Bagikan Struk',
+            onPressed: () => DigitalReceiptService.instance.shareReceiptById(transactionId),
           ),
         ],
       ),

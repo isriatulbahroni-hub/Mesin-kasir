@@ -5,6 +5,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../models/transaction.dart';
 import '../../printer/printer_service.dart';
+import '../../receipt/digital_receipt_service.dart';
 import '../providers/cart_provider.dart';
 import '../providers/pos_provider.dart';
 
@@ -230,14 +231,27 @@ class _CheckoutSheetState extends ConsumerState<CheckoutSheet> {
         icon: const Icon(Icons.check_circle_rounded, color: AppColors.emerald600, size: 48),
         title: const Text('Transaksi berhasil'),
         content: Text(invoiceNo != null ? 'No. Invoice: $invoiceNo' : 'Transaksi berhasil disimpan.'),
+        actionsAlignment: MainAxisAlignment.spaceBetween,
         actions: [
           if (transactionId != null)
-            TextButton.icon(
-              icon: const Icon(Icons.print_outlined),
-              label: const Text('Cetak Struk'),
-              onPressed: () async {
-                await PrinterService.instance.printReceiptById(transactionId);
-              },
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.print_outlined),
+                  tooltip: 'Cetak Struk',
+                  onPressed: () async {
+                    await PrinterService.instance.printReceiptById(transactionId);
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.share_outlined),
+                  tooltip: 'Bagikan Struk',
+                  onPressed: () async {
+                    await DigitalReceiptService.instance.shareReceiptById(transactionId);
+                  },
+                ),
+              ],
             ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx),
