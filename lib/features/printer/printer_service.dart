@@ -90,9 +90,19 @@ class PrinterService {
     required String paymentMethod,
     List<Map<String, dynamic>>? payments,
   }) async {
-    final connected = await PrintBluetoothThermal.connectionStatus;
+    var connected = await PrintBluetoothThermal.connectionStatus;
     if (!connected) {
-      throw Exception('Printer belum terhubung. Buka Pengaturan Printer dulu.');
+      // Printer Bluetooth klasik sering auto-disconnect setelah idle. Coba
+      // sambung ulang otomatis pakai MAC yang tersimpan sebelum menyerah,
+      // supaya kasir tidak perlu bolak-balik ke Pengaturan Printer.
+      final savedMac = await getSavedPrinterMac();
+      if (savedMac == null) {
+        throw Exception('Belum ada printer yang diatur. Buka Pengaturan Printer dulu.');
+      }
+      connected = await connect(savedMac);
+      if (!connected) {
+        throw Exception('Printer terputus dan gagal tersambung ulang. Pastikan printer menyala dan dalam jangkauan.');
+      }
     }
 
     final paperSize = await getPaperSize();
@@ -161,6 +171,9 @@ class PrinterService {
     bytes.addAll(generator.feed(2));
     bytes.addAll(generator.cut());
 
-    await PrintBluetoothThermal.writeBytes(bytes);
+    final success = await PrintBluetoothThermal.writeBytes(bytes);
+    if (!success) {
+      throw Exception('Gagal mengirim data ke printer. Coba lagi atau cek koneksi printer.');
+    }
   }
 }

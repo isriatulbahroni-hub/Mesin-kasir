@@ -62,7 +62,10 @@ class _PosScreenState extends ConsumerState<PosScreen> {
       return false;
     }
 
-    final char = event.character;
+    var char = event.character;
+    if (char == null || char.isEmpty) {
+      char = _digitFromLogicalKey(event.logicalKey);
+    }
     if (char == null || char.isEmpty) return false;
     if (gap != null && gap > _maxGap) _buffer.clear();
     _buffer.write(char);
@@ -71,6 +74,23 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     if (_buffer.length > 64) _buffer.clear();
     return false;
   }
+
+  /// Fallback untuk scanner hardware yang kadang tidak mengisi
+  /// [KeyEvent.character] pada digit (umum di beberapa mode HID numpad).
+  static const _digitKeys = {
+    LogicalKeyboardKey.digit0: '0', LogicalKeyboardKey.numpad0: '0',
+    LogicalKeyboardKey.digit1: '1', LogicalKeyboardKey.numpad1: '1',
+    LogicalKeyboardKey.digit2: '2', LogicalKeyboardKey.numpad2: '2',
+    LogicalKeyboardKey.digit3: '3', LogicalKeyboardKey.numpad3: '3',
+    LogicalKeyboardKey.digit4: '4', LogicalKeyboardKey.numpad4: '4',
+    LogicalKeyboardKey.digit5: '5', LogicalKeyboardKey.numpad5: '5',
+    LogicalKeyboardKey.digit6: '6', LogicalKeyboardKey.numpad6: '6',
+    LogicalKeyboardKey.digit7: '7', LogicalKeyboardKey.numpad7: '7',
+    LogicalKeyboardKey.digit8: '8', LogicalKeyboardKey.numpad8: '8',
+    LogicalKeyboardKey.digit9: '9', LogicalKeyboardKey.numpad9: '9',
+  };
+
+  String? _digitFromLogicalKey(LogicalKeyboardKey key) => _digitKeys[key];
 
   @override
   Widget build(BuildContext context) {

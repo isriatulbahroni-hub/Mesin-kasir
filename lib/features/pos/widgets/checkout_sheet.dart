@@ -241,14 +241,26 @@ class _CheckoutSheetState extends ConsumerState<CheckoutSheet> {
                   icon: const Icon(Icons.print_outlined),
                   tooltip: 'Cetak Struk',
                   onPressed: () async {
-                    await PrinterService.instance.printReceiptById(transactionId);
+                    try {
+                      await PrinterService.instance.printReceiptById(transactionId);
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal cetak: $e')));
+                      }
+                    }
                   },
                 ),
                 IconButton(
                   icon: const Icon(Icons.share_outlined),
                   tooltip: 'Bagikan Struk',
                   onPressed: () async {
-                    await DigitalReceiptService.instance.shareReceiptById(transactionId);
+                    try {
+                      await DigitalReceiptService.instance.shareReceiptById(transactionId);
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal membagikan struk: $e')));
+                      }
+                    }
                   },
                 ),
               ],

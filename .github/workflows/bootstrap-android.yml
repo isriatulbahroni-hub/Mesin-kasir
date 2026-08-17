@@ -1,0 +1,37 @@
+name: Bootstrap Android Project
+
+# Workflow sekali-jalan: repo ini TIDAK PERNAH punya folder android/ sejak
+# awal (bukan digitignore — memang belum pernah di-generate), jadi app ini
+# belum bisa di-build jadi APK. Jalankan manual lewat tab Actions -> pilih
+# workflow ini -> "Run workflow", SEKALI SAJA. Setelah folder android/
+# berhasil di-commit ke main, workflow ini tidak perlu dijalankan lagi
+# (kecuali mau reset ulang project Android dari nol).
+on:
+  workflow_dispatch: {}
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Generate android/ platform folder
+        # --org: ganti sesuai domain/organisasi kamu sendiri sebelum rilis ke
+        # Play Store (package id ini sebaiknya PERMANEN, tidak gampang diganti
+        # setelah publish). Default di bawah cuma placeholder yang masuk akal.
+        run: flutter create . --platforms=android --project-name=kasir_pro --org=id.bahroney
+
+      - name: Commit generated android/ folder
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add android/
+          git commit -m "chore: bootstrap folder android/ (belum pernah ada sebelumnya)" || echo "Tidak ada perubahan untuk di-commit"
+          git push

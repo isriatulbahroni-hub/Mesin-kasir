@@ -49,12 +49,28 @@ class TransactionDetailScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.print_outlined),
             tooltip: 'Cetak Struk',
-            onPressed: () => PrinterService.instance.printReceiptById(transactionId),
+            onPressed: () async {
+              try {
+                await PrinterService.instance.printReceiptById(transactionId);
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal cetak: $e')));
+                }
+              }
+            },
           ),
           IconButton(
             icon: const Icon(Icons.share_outlined),
             tooltip: 'Bagikan Struk',
-            onPressed: () => DigitalReceiptService.instance.shareReceiptById(transactionId),
+            onPressed: () async {
+              try {
+                await DigitalReceiptService.instance.shareReceiptById(transactionId);
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal membagikan struk: $e')));
+                }
+              }
+            },
           ),
         ],
       ),
