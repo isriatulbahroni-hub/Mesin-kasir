@@ -15,7 +15,7 @@ final currentStaffProvider = FutureProvider<Staff?>((ref) async {
   final client = ref.watch(supabaseClientProvider);
   final data = await client
       .from('staff')
-      .select()
+      .select('id, store_id, user_id, role, full_name, is_active, shift_open_at, created_at')
       .eq('user_id', user.id)
       .eq('is_active', true)
       .maybeSingle();
