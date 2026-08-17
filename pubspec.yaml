@@ -32,10 +32,6 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  riverpod_generator: ^2.4.3
-  build_runner: ^2.4.13
-  custom_lint: ^0.6.7
-  riverpod_lint: ^2.3.13
   flutter_lints: ^4.0.0
 
 flutter:
