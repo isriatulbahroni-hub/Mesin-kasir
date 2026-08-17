@@ -1,0 +1,27 @@
+-- ============================================================================
+-- FIX: 2 bug fatal ditemukan saat audit modul backend yang sudah ada
+-- ============================================================================
+-- Konteks lengkap ada di commit message & percakapan. Ringkasnya:
+--
+-- BUG 1 — checkout gagal total sejak fitur split payment ditambahkan:
+--   trigger trg_post_sale_payment_ledger (AFTER INSERT ON transaction_payments)
+--   memanggil post_sale_payment_to_ledger() yang memakai NEW.payment_method
+--   (kolom itu TIDAK ADA di transaction_payments, nama sebenarnya `method`)
+--   dan membandingkan dengan 'cash' (nilai sebenarnya 'tunai'). Trigger ini
+--   otomatis jalan tiap checkout_transaction RPC insert baris pembayaran,
+--   jadi setiap checkout pasti gagal karena trigger error.
+--
+-- BUG 2 — stok terpotong dua kali tiap penjualan:
+--   trigger trg_apply_stock_on_sale (AFTER INSERT ON transaction_items) sudah
+--   memotong stok + catat stock_movements secara atomic. checkout_transaction
+--   RPC (yang ditulis tanpa tahu trigger ini ada) JUGA memotong stok secara
+--   manual -> stok berkurang dua kali dari yang seharusnya.
+--
+-- Fix: lihat isi lengkap fungsi hasil perbaikan di
+-- 20260817_01_functions.sql (checkout_transaction & post_sale_payment_to_ledger
+-- yang sudah final). File ini hanya mencatat migrasi historisnya secara
+-- eksplisit terpisah dari baseline snapshot.
+
+-- (Badan lengkap CREATE OR REPLACE FUNCTION untuk kedua fungsi ada di
+--  20260817_01_functions.sql — tidak diulang di sini untuk menghindari drift
+--  antara dua file kalau salah satu diedit lagi nanti.)
