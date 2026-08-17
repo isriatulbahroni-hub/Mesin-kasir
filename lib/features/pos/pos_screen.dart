@@ -3,9 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/providers/lock_provider.dart';
 import '../../core/providers/session_provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/providers/auth_provider.dart';
+import '../security/pin_setup_screen.dart';
 import 'barcode_lookup.dart';
 import 'providers/cart_provider.dart';
 import 'providers/held_cart_provider.dart';
@@ -102,6 +104,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                 : const SizedBox.shrink(),
             orElse: () => const SizedBox.shrink(),
           ),
+          _PosLockButton(),
           IconButton(
             icon: const Icon(Icons.logout_rounded),
             tooltip: 'Keluar',
@@ -129,6 +132,25 @@ class _PosScreenState extends ConsumerState<PosScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _PosLockButton extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hasPinAsync = ref.watch(hasStaffPinProvider);
+    final hasPin = hasPinAsync.valueOrNull ?? false;
+    return IconButton(
+      icon: Icon(hasPin ? Icons.lock_outline_rounded : Icons.lock_open_rounded),
+      tooltip: hasPin ? 'Kunci layar' : 'Atur PIN kunci layar',
+      onPressed: () async {
+        if (hasPin) {
+          ref.read(lockProvider.notifier).lock();
+        } else {
+          await Navigator.push(context, MaterialPageRoute(builder: (_) => const PinSetupScreen()));
+        }
+      },
     );
   }
 }

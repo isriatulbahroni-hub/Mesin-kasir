@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/providers/lock_provider.dart';
 import '../../core/providers/session_provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../features/auth/providers/auth_provider.dart';
+import '../../features/security/pin_setup_screen.dart';
 
 class NavGroup {
   final String? label;
@@ -144,6 +146,7 @@ class AppSidebar extends ConsumerWidget {
                       ],
                     ),
                   ),
+                  _LockButton(),
                   IconButton(
                     icon: const Icon(Icons.logout_rounded, size: 19, color: AppColors.textSecondary),
                     tooltip: 'Keluar',
@@ -156,6 +159,25 @@ class AppSidebar extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _LockButton extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hasPinAsync = ref.watch(hasStaffPinProvider);
+    final hasPin = hasPinAsync.valueOrNull ?? false;
+    return IconButton(
+      icon: Icon(hasPin ? Icons.lock_outline_rounded : Icons.lock_open_rounded, size: 19, color: AppColors.textSecondary),
+      tooltip: hasPin ? 'Kunci layar' : 'Atur PIN kunci layar',
+      onPressed: () async {
+        if (hasPin) {
+          ref.read(lockProvider.notifier).lock();
+        } else {
+          await Navigator.push(context, MaterialPageRoute(builder: (_) => const PinSetupScreen()));
+        }
+      },
     );
   }
 }
