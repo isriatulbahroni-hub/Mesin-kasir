@@ -1,4 +1,25 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!-- Wajib untuk semua request ke Supabase (auth, database, storage, realtime). -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!-- Kamera untuk scan barcode (mobile_scanner) dan foto produk (image_picker). -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
+
+    <!-- Bluetooth klasik untuk printer struk thermal 58mm/80mm
+         (print_bluetooth_thermal). Android 12+ (API 31+) pakai model
+         permission baru (BLUETOOTH_SCAN/CONNECT); di bawahnya pakai
+         BLUETOOTH/BLUETOOTH_ADMIN + lokasi (wajib dari OS untuk scan BT
+         classic sebelum Android 12, bukan karena app ini butuh lokasi). -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30"/>
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30"/>
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="s"/>
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
+
     <application
         android:label="kasir_pro"
         android:name="${applicationName}"
