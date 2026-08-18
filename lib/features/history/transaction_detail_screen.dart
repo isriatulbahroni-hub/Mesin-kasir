@@ -9,7 +9,9 @@ import '../../models/transaction.dart';
 import '../../models/transaction_item.dart';
 import '../printer/printer_service.dart';
 import '../receipt/digital_receipt_service.dart';
+import 'providers/return_provider.dart';
 import 'providers/transaction_action_provider.dart';
+import 'return_screen.dart';
 
 final _transactionDetailProvider =
     FutureProvider.autoDispose.family<Transaction, String>((ref, id) async {
@@ -141,28 +143,57 @@ class TransactionDetailScreen extends ConsumerWidget {
               child: Text('Status: ${tx.status.label}', style: const TextStyle(fontWeight: FontWeight.w700)),
             ),
             const SizedBox(height: 24),
+            _RefundHistory(transactionId: transactionId),
+            const SizedBox(height: 16),
             staffAsync.maybeWhen(
               data: (staff) {
                 final canManage = staff?.role.canManage ?? false;
                 if (!canManage || tx.status != TransactionStatus.completed) {
                   return const SizedBox.shrink();
                 }
-                return Row(
+                return Column(
                   children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => _confirmAction(context, ref, tx, 'void'),
-                        style: OutlinedButton.styleFrom(foregroundColor: AppColors.danger),
-                        child: const Text('Void Transaksi'),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.assignment_return_outlined),
+                        label: const Text('Retur Sebagian'),
+                        style: OutlinedButton.styleFrom(foregroundColor: AppColors.warning),
+                        onPressed: () async {
+                          final items = itemsAsync.valueOrNull ?? const [];
+                          final changed = await Navigator.push<bool>(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ReturnScreen(transactionId: tx.id, invoiceNo: tx.invoiceNo, items: items),
+                            ),
+                          );
+                          if (changed == true) {
+                            ref.invalidate(_transactionDetailProvider(tx.id));
+                            ref.invalidate(refundedQuantitiesProvider(tx.id));
+                            ref.invalidate(transactionRefundsProvider(tx.id));
+                          }
+                        },
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => _confirmAction(context, ref, tx, 'refunded'),
-                        style: OutlinedButton.styleFrom(foregroundColor: AppColors.warning),
-                        child: const Text('Refund'),
-                      ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => _confirmAction(context, ref, tx, 'void'),
+                            style: OutlinedButton.styleFrom(foregroundColor: AppColors.danger),
+                            child: const Text('Void Transaksi'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => _confirmAction(context, ref, tx, 'refunded'),
+                            style: OutlinedButton.styleFrom(foregroundColor: AppColors.warning),
+                            child: const Text('Refund Semua'),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 );
@@ -221,6 +252,50 @@ class TransactionDetailScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _RefundHistory extends ConsumerWidget {
+  final String transactionId;
+  const _RefundHistory({required this.transactionId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final refundsAsync = ref.watch(transactionRefundsProvider(transactionId));
+    return refundsAsync.maybeWhen(
+      data: (refunds) {
+        if (refunds.isEmpty) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Riwayat Retur', style: TextStyle(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            for (final r in refunds)
+              Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: AppColors.warningBg, borderRadius: BorderRadius.circular(8)),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(Formatters.rupiah((r['total_amount'] as num).toInt()), style: const TextStyle(fontWeight: FontWeight.w700)),
+                          if ((r['reason'] as String?)?.isNotEmpty == true)
+                            Text(r['reason'] as String, style: const TextStyle(fontSize: 12, color: AppColors.charcoal500)),
+                        ],
+                      ),
+                    ),
+                    Text(Formatters.dateTime(DateTime.parse(r['created_at'] as String)), style: const TextStyle(fontSize: 12, color: AppColors.charcoal500)),
+                  ],
+                ),
+              ),
+          ],
+        );
+      },
+      orElse: () => const SizedBox.shrink(),
     );
   }
 }
