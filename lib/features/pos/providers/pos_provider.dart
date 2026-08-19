@@ -64,7 +64,7 @@ class CheckoutController extends StateNotifier<AsyncValue<void>> {
       final key = _uuid.v4();
       final service = OfflineCheckoutService(client: _ref.read(supabaseClientProvider));
       try {
-        final txId = await service.checkout(storeId: staff.storeId, shiftId: shift.id, items: items, paidAmount: totalPaid, paymentMethod: method.name, payments: payments, idempotencyKey: key, transactionDiscount: cart.transactionDiscount);
+        final txId = await service.checkout(storeId: staff.storeId, shiftId: shift.id, items: items, paidAmount: totalPaid, paymentMethod: method.name, payments: payments, idempotencyKey: key, transactionDiscount: cart.transactionDiscount, customerId: cart.customerId);
         String? invoiceNo;
         try {
           final row = await _ref.read(supabaseClientProvider).from('transactions').select('invoice_no').eq('id', txId).maybeSingle();

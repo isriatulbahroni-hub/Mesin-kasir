@@ -16,6 +16,9 @@ import '../../features/printer/printer_settings_screen.dart';
 import '../../features/accounting/accounting_screen.dart';
 import '../../features/offline/offline_sync_screen.dart';
 import '../../features/operations/operations_screen.dart';
+import '../../features/customers/customers_screen.dart';
+import '../../features/customers/customer_form_screen.dart';
+import '../../features/customers/customer_detail_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authNotifier = ValueNotifier<int>(0);
@@ -36,6 +39,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         GoRoute(path:'/printer-settings',builder:(context,state)=>const PrinterSettingsScreen()),
         GoRoute(path:'/accounting',builder:(context,state)=>const AccountingScreen()),
         GoRoute(path:'/offline',builder:(context,state)=>const OfflineSyncScreen()),
+        GoRoute(path:'/customers',builder:(context,state)=>const CustomersScreen(),routes:[
+          GoRoute(path:'new',builder:(context,state)=>const CustomerFormScreen()),
+          GoRoute(path:'edit/:id',builder:(context,state)=>CustomerFormScreen(customerId:state.pathParameters['id'])),
+          GoRoute(path:':id',builder:(context,state)=>CustomerDetailScreen(customerId:state.pathParameters['id']!)),
+        ]),
       ]),
     ],
   );

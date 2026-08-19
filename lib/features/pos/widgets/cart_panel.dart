@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/formatters.dart';
+import '../../customers/providers/customers_provider.dart';
 import '../providers/cart_provider.dart';
 import '../providers/held_cart_provider.dart';
 import 'checkout_sheet.dart';
@@ -43,6 +44,10 @@ class CartPanel extends ConsumerWidget {
                   ),
               ],
             ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: _CustomerPicker(cart: cart),
           ),
           const Divider(height: 1),
           Expanded(
@@ -96,6 +101,118 @@ class CartPanel extends ConsumerWidget {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal menahan transaksi: $e')));
       }
     }
+  }
+}
+
+class _CustomerPicker extends ConsumerWidget {
+  final CartState cart;
+  const _CustomerPicker({required this.cart});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (cart.customerId != null) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(color: AppColors.emerald100, borderRadius: BorderRadius.circular(10)),
+        child: Row(
+          children: [
+            const Icon(Icons.person_rounded, size: 18, color: AppColors.emerald700),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(cart.customerName ?? '-',
+                  style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.emerald700), overflow: TextOverflow.ellipsis),
+            ),
+            InkWell(
+              onTap: () => ref.read(cartProvider.notifier).clearCustomer(),
+              child: const Icon(Icons.close_rounded, size: 18, color: AppColors.emerald700),
+            ),
+          ],
+        ),
+      );
+    }
+    return OutlinedButton.icon(
+      onPressed: () => _pickCustomer(context, ref),
+      icon: const Icon(Icons.person_add_alt_outlined, size: 18),
+      label: const Text('Pilih Pelanggan (opsional)'),
+      style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(38)),
+    );
+  }
+
+  void _pickCustomer(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => const _CustomerPickerSheet(),
+    );
+  }
+}
+
+class _CustomerPickerSheet extends ConsumerStatefulWidget {
+  const _CustomerPickerSheet();
+  @override
+  ConsumerState<_CustomerPickerSheet> createState() => _CustomerPickerSheetState();
+}
+
+class _CustomerPickerSheetState extends ConsumerState<_CustomerPickerSheet> {
+  String _query = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final customersAsync = ref.watch(customersStreamProvider);
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Pilih Pelanggan', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+            const SizedBox(height: 12),
+            TextField(
+              autofocus: true,
+              onChanged: (v) => setState(() => _query = v.trim().toLowerCase()),
+              decoration: const InputDecoration(hintText: 'Cari nama/HP...', prefixIcon: Icon(Icons.search_rounded)),
+            ),
+            const SizedBox(height: 8),
+            Flexible(
+              child: customersAsync.when(
+                loading: () => const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator())),
+                error: (e, _) => Padding(padding: const EdgeInsets.all(24), child: Text('Gagal memuat: $e')),
+                data: (customers) {
+                  final filtered = _query.isEmpty
+                      ? customers
+                      : customers.where((c) => c.name.toLowerCase().contains(_query) || (c.phone?.contains(_query) ?? false)).toList();
+                  if (filtered.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(child: Text('Pelanggan tidak ditemukan.', style: TextStyle(color: AppColors.charcoal500))),
+                    );
+                  }
+                  return ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: filtered.length,
+                    itemBuilder: (context, i) {
+                      final c = filtered[i];
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(c.name),
+                        subtitle: Text('${c.phone ?? '-'} · ${c.points} poin'),
+                        onTap: () {
+                          ref.read(cartProvider.notifier).setCustomer(c.id, c.name);
+                          Navigator.pop(context);
+                        },
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

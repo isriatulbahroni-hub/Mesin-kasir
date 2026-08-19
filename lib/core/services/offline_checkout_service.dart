@@ -16,12 +16,14 @@ class OfflineCheckoutService {
     List<Map<String, dynamic>>? payments,
     required String idempotencyKey,
     int transactionDiscount = 0,
+    String? customerId,
   }) async {
     final payload = <String, dynamic>{
       'store_id': storeId, 'shift_id': shiftId, 'items': items,
       'paid_amount': paidAmount, 'payment_method': paymentMethod,
       'payments': payments, 'idempotency_key': idempotencyKey,
       'transaction_discount': transactionDiscount,
+      'customer_id': customerId,
       'created_at': DateTime.now().toUtc().toIso8601String(),
     };
     try {
@@ -30,6 +32,7 @@ class OfflineCheckoutService {
         'p_paid_amount': paidAmount, 'p_payment_method': paymentMethod,
         'p_payments': payments, 'p_idempotency_key': idempotencyKey,
         'p_transaction_discount': transactionDiscount,
+        'p_customer_id': customerId,
       }).timeout(const Duration(seconds: 15));
       return result.toString();
     } on PostgrestException {
@@ -62,6 +65,7 @@ class OfflineCheckoutService {
           'p_items': payload['items'], 'p_paid_amount': payload['paid_amount'],
           'p_payment_method': payload['payment_method'], 'p_payments': payload['payments'],
           'p_transaction_discount': payload['transaction_discount'] ?? 0,
+          'p_customer_id': payload['customer_id'],
           // Critical: retries always reuse the original key.
           'p_idempotency_key': key,
         }).timeout(const Duration(seconds: 15));

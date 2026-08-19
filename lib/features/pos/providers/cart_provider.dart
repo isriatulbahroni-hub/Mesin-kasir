@@ -22,8 +22,10 @@ class CartState {
   final List<CartLine> lines;
   final int transactionDiscount; // diskon nominal tambahan untuk seluruh transaksi
   final String note;
+  final String? customerId;
+  final String? customerName;
 
-  const CartState({this.lines = const [], this.transactionDiscount = 0, this.note = ''});
+  const CartState({this.lines = const [], this.transactionDiscount = 0, this.note = '', this.customerId, this.customerName});
 
   int get itemCount => lines.fold(0, (sum, l) => sum + l.quantity);
   int get subtotal => lines.fold(0, (sum, l) => sum + l.grossSubtotal);
@@ -31,11 +33,20 @@ class CartState {
   int get totalDiscount => lineDiscountTotal + transactionDiscount;
   int get total => (subtotal - totalDiscount).clamp(0, subtotal);
 
-  CartState copyWith({List<CartLine>? lines, int? transactionDiscount, String? note}) =>
+  CartState copyWith({
+    List<CartLine>? lines,
+    int? transactionDiscount,
+    String? note,
+    String? customerId,
+    String? customerName,
+    bool clearCustomer = false,
+  }) =>
       CartState(
         lines: lines ?? this.lines,
         transactionDiscount: transactionDiscount ?? this.transactionDiscount,
         note: note ?? this.note,
+        customerId: clearCustomer ? null : (customerId ?? this.customerId),
+        customerName: clearCustomer ? null : (customerName ?? this.customerName),
       );
 }
 
@@ -73,6 +84,10 @@ class CartController extends StateNotifier<CartState> {
   }
 
   void setNote(String note) => state = state.copyWith(note: note);
+
+  void setCustomer(String id, String name) => state = state.copyWith(customerId: id, customerName: name);
+
+  void clearCustomer() => state = state.copyWith(clearCustomer: true);
 
   void removeLine(int index) {
     final lines = [...state.lines]..removeAt(index);
