@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../models/promotion.dart';
 import '../../customers/providers/customers_provider.dart';
+import '../../promotions/providers/promotions_provider.dart';
 import '../providers/cart_provider.dart';
 import '../providers/held_cart_provider.dart';
 import 'checkout_sheet.dart';
@@ -367,9 +369,9 @@ class _CartSummary extends ConsumerWidget {
         children: [
           _SummaryRow('Subtotal', Formatters.rupiah(cart.subtotal)),
           GestureDetector(
-            onTap: () => _showTransactionDiscountDialog(context, ref),
+            onTap: () => _showDiscountOptions(context, ref),
             child: _SummaryRow(
-              'Diskon transaksi',
+              cart.promotionName != null ? 'Promo: ${cart.promotionName}' : 'Diskon transaksi',
               cart.transactionDiscount > 0
                   ? '- ${Formatters.rupiah(cart.transactionDiscount)}'
                   : 'Tambah',
@@ -399,6 +401,54 @@ class _CartSummary extends ConsumerWidget {
     );
   }
 
+  void _showDiscountOptions(BuildContext context, WidgetRef ref) {
+    if (cart.promotionName != null) {
+      // Sudah ada promo terpasang -> tap langsung tawarkan lepas.
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Lepas promo ini?'),
+          content: Text('${cart.promotionName} akan dilepas dari transaksi ini.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
+            ElevatedButton(
+              onPressed: () { ref.read(cartProvider.notifier).clearPromotion(); Navigator.pop(ctx); },
+              child: const Text('Lepas'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+    showModalBottomSheet(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Wrap(children: [
+          ListTile(
+            leading: const Icon(Icons.local_offer_outlined),
+            title: const Text('Pakai Promo/Voucher'),
+            onTap: () { Navigator.pop(context); _showPromotionSheet(context, ref); },
+          ),
+          ListTile(
+            leading: const Icon(Icons.edit_outlined),
+            title: const Text('Diskon manual'),
+            onTap: () { Navigator.pop(context); _showTransactionDiscountDialog(context, ref); },
+          ),
+        ]),
+      ),
+    );
+  }
+
+  void _showPromotionSheet(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => _PromotionSheet(subtotal: cart.subtotal),
+    );
+  }
+
   void _showTransactionDiscountDialog(BuildContext context, WidgetRef ref) {
     final ctrl = TextEditingController(
         text: cart.transactionDiscount > 0 ? cart.transactionDiscount.toString() : '');
@@ -423,6 +473,133 @@ class _CartSummary extends ConsumerWidget {
             child: const Text('Simpan'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _PromotionSheet extends ConsumerStatefulWidget {
+  final int subtotal;
+  const _PromotionSheet({required this.subtotal});
+
+  @override
+  ConsumerState<_PromotionSheet> createState() => _PromotionSheetState();
+}
+
+class _PromotionSheetState extends ConsumerState<_PromotionSheet> {
+  final _codeCtrl = TextEditingController();
+  bool _checking = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _codeCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _applyByCode() async {
+    final code = _codeCtrl.text.trim();
+    if (code.isEmpty) return;
+    setState(() { _checking = true; _error = null; });
+    try {
+      final promo = await ref.read(promotionControllerProvider).findByCode(code);
+      final discount = promo.computeDiscount(widget.subtotal);
+      if (discount <= 0) {
+        setState(() => _error = 'Belum memenuhi syarat minimal belanja Rp ${promo.minimumPurchase}.');
+        return;
+      }
+      ref.read(cartProvider.notifier).applyPromotion(id: promo.id, name: promo.name, discountAmount: discount);
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      setState(() => _error = e.toString().replaceFirst(RegExp(r'^.*?Exception: '), ''));
+    } finally {
+      if (mounted) setState(() => _checking = false);
+    }
+  }
+
+  void _applyPromo(Promotion promo) {
+    final discount = promo.computeDiscount(widget.subtotal);
+    if (discount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Belum memenuhi syarat minimal belanja ${Formatters.rupiah(promo.minimumPurchase)}.')),
+      );
+      return;
+    }
+    ref.read(cartProvider.notifier).applyPromotion(id: promo.id, name: promo.name, discountAmount: discount);
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final promosAsync = ref.watch(activePromotionsProvider);
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Pakai Promo/Voucher', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _codeCtrl,
+                    textCapitalization: TextCapitalization.characters,
+                    decoration: const InputDecoration(hintText: 'Masukkan kode voucher'),
+                    onSubmitted: (_) => _applyByCode(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: _checking ? null : _applyByCode,
+                  child: _checking
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Text('Pakai'),
+                ),
+              ],
+            ),
+            if (_error != null) Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(_error!, style: const TextStyle(color: AppColors.danger, fontSize: 12)),
+            ),
+            const Divider(height: 28),
+            const Text('Atau pilih promo yang sedang berlaku:', style: TextStyle(color: AppColors.charcoal500, fontSize: 12)),
+            const SizedBox(height: 8),
+            Flexible(
+              child: promosAsync.when(
+                loading: () => const Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator())),
+                error: (e, _) => Padding(padding: const EdgeInsets.all(16), child: Text('Gagal memuat: $e')),
+                data: (promos) {
+                  final visible = promos.where((p) => p.code == null).toList(); // kode voucher lewat kolom di atas
+                  if (visible.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16),
+                      child: Text('Belum ada promo yang sedang berlaku.', style: TextStyle(color: AppColors.charcoal500)),
+                    );
+                  }
+                  return ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: visible.length,
+                    itemBuilder: (context, i) {
+                      final p = visible[i];
+                      final label = p.promotionType == 'percentage' ? '${p.value}%' : Formatters.rupiah(p.value);
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.local_offer_outlined, color: AppColors.emerald700),
+                        title: Text(p.name),
+                        subtitle: p.minimumPurchase > 0 ? Text('Min. belanja ${Formatters.rupiah(p.minimumPurchase)}') : null,
+                        trailing: Text(label, style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.emerald700)),
+                        onTap: () => _applyPromo(p),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

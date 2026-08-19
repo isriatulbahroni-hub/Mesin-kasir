@@ -72,6 +72,14 @@ class CheckoutController extends StateNotifier<AsyncValue<void>> {
         } catch (_) {
           // Best effort only — the dialog falls back to showing just the transaction id.
         }
+        if (cart.promotionId != null) {
+          try {
+            await _ref.read(supabaseClientProvider).rpc('redeem_promotion', params: {'p_promotion_id': cart.promotionId});
+          } catch (_) {
+            // Best effort: penjualan sudah sah, gagal redeem cuma bikin
+            // hitungan pemakaian promo kurang presisi, bukan gagal jual.
+          }
+        }
         _ref.read(cartProvider.notifier).clear();
         state = const AsyncData(null);
         return CheckoutResult.success(invoiceNo, txId);

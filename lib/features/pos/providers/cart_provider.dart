@@ -24,8 +24,18 @@ class CartState {
   final String note;
   final String? customerId;
   final String? customerName;
+  final String? promotionId;
+  final String? promotionName;
 
-  const CartState({this.lines = const [], this.transactionDiscount = 0, this.note = '', this.customerId, this.customerName});
+  const CartState({
+    this.lines = const [],
+    this.transactionDiscount = 0,
+    this.note = '',
+    this.customerId,
+    this.customerName,
+    this.promotionId,
+    this.promotionName,
+  });
 
   int get itemCount => lines.fold(0, (sum, l) => sum + l.quantity);
   int get subtotal => lines.fold(0, (sum, l) => sum + l.grossSubtotal);
@@ -40,6 +50,9 @@ class CartState {
     String? customerId,
     String? customerName,
     bool clearCustomer = false,
+    String? promotionId,
+    String? promotionName,
+    bool clearPromotion = false,
   }) =>
       CartState(
         lines: lines ?? this.lines,
@@ -47,6 +60,8 @@ class CartState {
         note: note ?? this.note,
         customerId: clearCustomer ? null : (customerId ?? this.customerId),
         customerName: clearCustomer ? null : (customerName ?? this.customerName),
+        promotionId: clearPromotion ? null : (promotionId ?? this.promotionId),
+        promotionName: clearPromotion ? null : (promotionName ?? this.promotionName),
       );
 }
 
@@ -80,8 +95,17 @@ class CartController extends StateNotifier<CartState> {
   }
 
   void setTransactionDiscount(int discount) {
-    state = state.copyWith(transactionDiscount: discount);
+    // Mengubah diskon manual berarti bukan lagi diskon dari promo yang
+    // sedang aktif — lepas keterkaitannya supaya tidak salah redeem promo
+    // untuk nominal yang sudah diubah staff.
+    state = state.copyWith(transactionDiscount: discount, clearPromotion: true);
   }
+
+  void applyPromotion({required String id, required String name, required int discountAmount}) {
+    state = state.copyWith(promotionId: id, promotionName: name, transactionDiscount: discountAmount);
+  }
+
+  void clearPromotion() => state = state.copyWith(clearPromotion: true, transactionDiscount: 0);
 
   void setNote(String note) => state = state.copyWith(note: note);
 
