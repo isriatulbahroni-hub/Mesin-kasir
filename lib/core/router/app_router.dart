@@ -21,6 +21,7 @@ import '../../features/customers/customer_form_screen.dart';
 import '../../features/customers/customer_detail_screen.dart';
 import '../../features/promotions/promotions_screen.dart';
 import '../../features/promotions/promotion_form_screen.dart';
+import '../../features/inventory/inventory_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authNotifier = ValueNotifier<int>(0);
@@ -41,6 +42,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         GoRoute(path:'/printer-settings',builder:(context,state)=>const PrinterSettingsScreen()),
         GoRoute(path:'/accounting',builder:(context,state)=>const AccountingScreen()),
         GoRoute(path:'/offline',builder:(context,state)=>const OfflineSyncScreen()),
+        GoRoute(path:'/inventory',builder:(context,state)=>const InventoryScreen()),
         GoRoute(path:'/customers',builder:(context,state)=>const CustomersScreen(),routes:[
           GoRoute(path:'new',builder:(context,state)=>const CustomerFormScreen()),
           GoRoute(path:'edit/:id',builder:(context,state)=>CustomerFormScreen(customerId:state.pathParameters['id'])),

@@ -143,10 +143,139 @@ class _ActiveShiftViewState extends ConsumerState<_ActiveShiftView> {
             ),
           ),
           const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _showCashMovementDialog(context, 'cash_in'),
+                  icon: const Icon(Icons.add_circle_outline_rounded, color: AppColors.emerald600),
+                  label: const Text('Kas Masuk'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _showCashMovementDialog(context, 'cash_out'),
+                  icon: const Icon(Icons.remove_circle_outline_rounded, color: AppColors.warning),
+                  label: const Text('Kas Keluar'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: () => _showCashMovementDialog(context, 'expense'),
+            icon: const Icon(Icons.receipt_outlined, color: AppColors.danger),
+            label: const Text('Catat Pengeluaran'),
+          ),
+          const SizedBox(height: 20),
+          const Text('Riwayat Kas Shift Ini', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+          const SizedBox(height: 8),
+          Consumer(
+            builder: (context, ref, _) {
+              final movementsAsync = ref.watch(cashMovementsProvider(shift.id));
+              return movementsAsync.when(
+                loading: () => const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: LinearProgressIndicator(),
+                ),
+                error: (e, _) => Text('Gagal memuat: $e'),
+                data: (movements) {
+                  if (movements.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8),
+                      child: Text('Belum ada catatan kas masuk/keluar.',
+                          style: TextStyle(color: AppColors.charcoal500)),
+                    );
+                  }
+                  return Column(
+                    children: [
+                      for (final m in movements)
+                        Card(
+                          child: ListTile(
+                            dense: true,
+                            leading: Icon(
+                              m.type == 'cash_in' ? Icons.add_circle_rounded : Icons.remove_circle_rounded,
+                              color: m.type == 'cash_in' ? AppColors.emerald600 : AppColors.warning,
+                            ),
+                            title: Text(m.label),
+                            subtitle: m.note != null ? Text(m.note!) : null,
+                            trailing: Text(
+                              '${m.type == 'cash_in' ? '+' : '-'} ${Formatters.rupiah(m.amount)}',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: m.type == 'cash_in' ? AppColors.emerald600 : AppColors.warning,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              );
+            },
+          ),
+          const SizedBox(height: 20),
           OutlinedButton.icon(
             onPressed: () => _showCloseShiftDialog(context),
             icon: const Icon(Icons.lock_outline_rounded),
             label: const Text('Tutup Shift'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showCashMovementDialog(BuildContext context, String type) {
+    final amountCtrl = TextEditingController();
+    final noteCtrl = TextEditingController();
+    final title = switch (type) {
+      'cash_in' => 'Catat Kas Masuk',
+      'cash_out' => 'Catat Kas Keluar',
+      _ => 'Catat Pengeluaran',
+    };
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: amountCtrl,
+              keyboardType: TextInputType.number,
+              autofocus: true,
+              decoration: const InputDecoration(labelText: 'Nominal', prefixText: 'Rp '),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: noteCtrl,
+              decoration: const InputDecoration(labelText: 'Catatan (opsional)'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
+          ElevatedButton(
+            onPressed: () async {
+              final amount = int.tryParse(amountCtrl.text.trim()) ?? 0;
+              Navigator.pop(ctx);
+              final error = await ref.read(shiftControllerProvider.notifier).addCashMovement(
+                    shiftId: widget.shift.id,
+                    type: type,
+                    amount: amount,
+                    note: noteCtrl.text.trim().isEmpty ? null : noteCtrl.text.trim(),
+                  );
+              if (!mounted) return;
+              if (error != null) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Tersimpan.')));
+              }
+            },
+            child: const Text('Simpan'),
           ),
         ],
       ),
