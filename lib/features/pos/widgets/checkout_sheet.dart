@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/session_provider.dart';
+import '../../../core/providers/supabase_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../models/transaction.dart';
@@ -126,7 +127,13 @@ class _CheckoutSheetState extends ConsumerState<CheckoutSheet> {
                 OutlinedButton.icon(
                   onPressed: () => _showQrisDialog(context),
                   icon: const Icon(Icons.qr_code_2_rounded),
-                  label: const Text('Tampilkan QRIS ke Customer'),
+                  label: const Text('QRIS Statis (konfirmasi manual)'),
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton.icon(
+                  onPressed: () => _startDynamicQris(context),
+                  icon: const Icon(Icons.bolt_rounded),
+                  label: const Text('QRIS Otomatis (Midtrans)'),
                 ),
               ],
             ] else ...[
@@ -167,6 +174,73 @@ class _CheckoutSheetState extends ConsumerState<CheckoutSheet> {
         ),
       ),
     );
+  }
+
+  Future<void> _startDynamicQris(BuildContext context) async {
+    final cart = ref.read(cartProvider);
+    final staff = ref.read(currentStaffProvider).value;
+    final shift = ref.read(activeShiftProvider).value;
+
+    if (staff == null || shift == null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Sesi staff/shift tidak ditemukan.')));
+      return;
+    }
+
+    setState(() => _submitting = true);
+    Map<String, dynamic> data;
+    try {
+      final client = ref.read(supabaseClientProvider);
+      final res = await client.functions.invoke('create-qris-payment', body: {
+        'staff_id': staff.id,
+        'shift_id': shift.id,
+        'items': cart.lines
+            .map((l) => {
+                  'product_id': l.product.id,
+                  'product_name': l.product.name,
+                  'price': l.product.sellingPrice,
+                  'cost_price': l.product.costPrice,
+                  'quantity': l.quantity,
+                  'discount': l.discount,
+                })
+            .toList(),
+        'transaction_discount': cart.transactionDiscount,
+        'note': cart.note.isEmpty ? null : cart.note,
+      });
+
+      final resData = res.data;
+      if (resData is Map && resData['error'] != null) {
+        throw Exception(resData['error']);
+      }
+      data = Map<String, dynamic>.from(resData as Map);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _submitting = false);
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Gagal membuat QRIS: $e')));
+      }
+      return;
+    }
+    if (mounted) setState(() => _submitting = false);
+    if (!context.mounted) return;
+
+    final confirmedTxId = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => _DynamicQrisWaitDialog(
+        qrisPaymentId: data['qris_payment_id'] as String,
+        qrUrl: data['qr_url'] as String,
+        amount: data['amount'] as int,
+      ),
+    );
+
+    if (!context.mounted) return;
+
+    if (confirmedTxId != null) {
+      ref.read(cartProvider.notifier).clear();
+      Navigator.pop(context); // tutup bottom sheet pembayaran
+      _showSuccessDialog(null, confirmedTxId);
+    }
   }
 
   void _showQrisDialog(BuildContext context) {
@@ -302,6 +376,102 @@ class _CheckoutSheetState extends ConsumerState<CheckoutSheet> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Dialog yang nunggu pembayaran QRIS dinamis (Midtrans) — dengerin realtime
+/// perubahan status di tabel qris_payments (dipicu webhook Midtrans begitu
+/// customer selesai scan & bayar), auto-close dengan hasil transaction_id
+/// begitu status berubah jadi 'paid'.
+class _DynamicQrisWaitDialog extends ConsumerStatefulWidget {
+  final String qrisPaymentId;
+  final String qrUrl;
+  final int amount;
+  const _DynamicQrisWaitDialog({required this.qrisPaymentId, required this.qrUrl, required this.amount});
+
+  @override
+  ConsumerState<_DynamicQrisWaitDialog> createState() => _DynamicQrisWaitDialogState();
+}
+
+class _DynamicQrisWaitDialogState extends ConsumerState<_DynamicQrisWaitDialog> {
+  @override
+  Widget build(BuildContext context) {
+    final client = ref.watch(supabaseClientProvider);
+    final stream = client
+        .from('qris_payments')
+        .stream(primaryKey: ['id'])
+        .eq('id', widget.qrisPaymentId);
+
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: stream,
+      builder: (context, snapshot) {
+        final row = (snapshot.data != null && snapshot.data!.isNotEmpty) ? snapshot.data!.first : null;
+        final status = row?['status'] as String? ?? 'pending';
+
+        // Selesai (paid) -> tutup dialog otomatis, kembalikan transaction_id.
+        if (status == 'paid' && row?['transaction_id'] != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop(row!['transaction_id'] as String);
+            }
+          });
+        }
+
+        final isFailedOrExpired = status == 'failed' || status == 'expired' || status == 'cancelled';
+
+        return AlertDialog(
+          title: const Text('Menunggu Pembayaran QRIS'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(Formatters.rupiah(widget.amount),
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 20, color: AppColors.emerald700)),
+              const SizedBox(height: 16),
+              if (isFailedOrExpired)
+                Column(
+                  children: [
+                    const Icon(Icons.error_outline_rounded, color: AppColors.danger, size: 48),
+                    const SizedBox(height: 8),
+                    Text(
+                      status == 'expired' ? 'QR sudah kedaluwarsa.' : 'Pembayaran gagal/dibatalkan.',
+                      style: const TextStyle(color: AppColors.danger),
+                    ),
+                  ],
+                )
+              else ...[
+                SizedBox(
+                  width: 240,
+                  height: 240,
+                  child: Image.network(
+                    widget.qrUrl,
+                    fit: BoxFit.contain,
+                    loadingBuilder: (context, child, progress) =>
+                        progress == null ? child : const Center(child: CircularProgressIndicator()),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                        width: 14, height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.emerald600)),
+                    SizedBox(width: 8),
+                    Text('Menunggu customer scan & bayar...', style: TextStyle(fontSize: 12.5)),
+                  ],
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(isFailedOrExpired ? 'Tutup' : 'Batalkan'),
+            ),
+          ],
+        );
+      },
     );
   }
 }

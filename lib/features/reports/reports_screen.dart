@@ -2,8 +2,10 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/providers/session_provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
+import 'providers/report_export_service.dart';
 import 'providers/reports_provider.dart';
 
 class ReportsScreen extends ConsumerWidget {
@@ -12,9 +14,42 @@ class ReportsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final summaryAsync = ref.watch(reportsSummaryProvider);
+    final storeAsync = ref.watch(currentStoreProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Laporan 7 Hari')),
+      appBar: AppBar(
+        title: const Text('Laporan 7 Hari'),
+        actions: [
+          if (summaryAsync.hasValue)
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.ios_share_rounded),
+              tooltip: 'Export',
+              onSelected: (v) async {
+                final summary = summaryAsync.value!;
+                final storeName = storeAsync.value?.name ?? 'Kasir Pro';
+                final from = summary.daily.isNotEmpty ? summary.daily.first.date : DateTime.now();
+                final to = summary.daily.isNotEmpty ? summary.daily.last.date : DateTime.now();
+                try {
+                  if (v == 'pdf') {
+                    await ReportExportService.instance
+                        .exportPdf(storeName: storeName, summary: summary, from: from, to: to);
+                  } else {
+                    await ReportExportService.instance
+                        .exportExcel(storeName: storeName, summary: summary, from: from, to: to);
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal export: $e')));
+                  }
+                }
+              },
+              itemBuilder: (ctx) => const [
+                PopupMenuItem(value: 'pdf', child: Text('Export PDF')),
+                PopupMenuItem(value: 'excel', child: Text('Export Excel')),
+              ],
+            ),
+        ],
+      ),
       body: summaryAsync.when(
         loading: () => const Center(child: CircularProgressIndicator(color: AppColors.emerald600)),
         error: (e, _) => Center(child: Text('Gagal memuat laporan: $e')),
