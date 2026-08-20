@@ -8,6 +8,7 @@ class TransactionItem {
   final int quantity;
   final int discount;
   final int subtotal;
+  final String kitchenStatus;
 
   TransactionItem({
     required this.id,
@@ -19,6 +20,7 @@ class TransactionItem {
     required this.quantity,
     required this.discount,
     required this.subtotal,
+    this.kitchenStatus = 'pending',
   });
 
   factory TransactionItem.fromJson(Map<String, dynamic> json) =>
@@ -32,5 +34,6 @@ class TransactionItem {
         quantity: (json['quantity'] as num).toInt(),
         discount: (json['discount'] as num?)?.toInt() ?? 0,
         subtotal: (json['subtotal'] as num).toInt(),
+        kitchenStatus: json['kitchen_status'] as String? ?? 'pending',
       );
 }

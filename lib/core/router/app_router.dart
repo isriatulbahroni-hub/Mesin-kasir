@@ -22,6 +22,10 @@ import '../../features/customers/customer_detail_screen.dart';
 import '../../features/promotions/promotions_screen.dart';
 import '../../features/promotions/promotion_form_screen.dart';
 import '../../features/inventory/inventory_screen.dart';
+import '../../features/kitchen/kitchen_screen.dart';
+import '../../features/approvals/approvals_screen.dart';
+import '../../features/devices/devices_screen.dart';
+import '../../features/qris/qris_settings_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authNotifier = ValueNotifier<int>(0);
@@ -43,6 +47,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         GoRoute(path:'/accounting',builder:(context,state)=>const AccountingScreen()),
         GoRoute(path:'/offline',builder:(context,state)=>const OfflineSyncScreen()),
         GoRoute(path:'/inventory',builder:(context,state)=>const InventoryScreen()),
+        GoRoute(path:'/kitchen',builder:(context,state)=>const KitchenScreen()),
+        GoRoute(path:'/approvals',builder:(context,state)=>const ApprovalsScreen()),
+        GoRoute(path:'/devices',builder:(context,state)=>const DevicesScreen()),
+        GoRoute(path:'/qris-settings',builder:(context,state)=>const QrisSettingsScreen()),
         GoRoute(path:'/customers',builder:(context,state)=>const CustomersScreen(),routes:[
           GoRoute(path:'new',builder:(context,state)=>const CustomerFormScreen()),
           GoRoute(path:'edit/:id',builder:(context,state)=>CustomerFormScreen(customerId:state.pathParameters['id'])),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../models/transaction.dart';
@@ -120,6 +121,14 @@ class _CheckoutSheetState extends ConsumerState<CheckoutSheet> {
                         style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.emerald700)),
                   ],
                 ),
+              if (_method == PaymentMethod.qris) ...[
+                const SizedBox(height: 4),
+                OutlinedButton.icon(
+                  onPressed: () => _showQrisDialog(context),
+                  icon: const Icon(Icons.qr_code_2_rounded),
+                  label: const Text('Tampilkan QRIS ke Customer'),
+                ),
+              ],
             ] else ...[
               for (int i = 0; i < _splitEntries.length; i++) _SplitEntryRow(
                 entry: _splitEntries[i],
@@ -156,6 +165,28 @@ class _CheckoutSheetState extends ConsumerState<CheckoutSheet> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showQrisDialog(BuildContext context) {
+    final store = ref.read(currentStoreProvider).value;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Scan QRIS'),
+        content: store?.qrisImageUrl != null
+            ? SizedBox(
+                width: 280,
+                height: 280,
+                child: Image.network(store!.qrisImageUrl!, fit: BoxFit.contain),
+              )
+            : const Text(
+                'Gambar QRIS belum diatur. Buka Pengaturan → QRIS untuk upload gambar QRIS toko.',
+              ),
+        actions: [
+          ElevatedButton(onPressed: () => Navigator.pop(ctx), child: const Text('Tutup')),
+        ],
       ),
     );
   }
