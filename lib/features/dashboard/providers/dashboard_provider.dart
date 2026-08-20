@@ -56,7 +56,7 @@ final dashboardSummaryProvider = FutureProvider.autoDispose<DashboardSummary>((r
       .not('stock', 'is', null);
 
   final lowStock = (productRows as List)
-      .map(Product.fromJson)
+      .map((e) => Product.fromJson(e as Map<String, dynamic>))
       .where((p) => p.isLowStock)
       .toList();
 

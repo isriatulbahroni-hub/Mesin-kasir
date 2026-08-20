@@ -39,5 +39,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-  assets:
-    - assets/
+  # (Tidak ada folder assets/ lokal - font pakai google_fonts runtime,
+  # gambar produk/QRIS disimpan di Supabase Storage.)

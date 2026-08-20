@@ -6,6 +6,7 @@ import '../../../core/providers/supabase_provider.dart';
 import '../../../core/services/offline_checkout_service.dart';
 import '../../../models/category.dart';
 import '../../../models/product.dart';
+import '../../../models/transaction.dart';
 import 'cart_provider.dart';
 
 final productsStreamProvider = StreamProvider.autoDispose<List<Product>>((ref) async* {

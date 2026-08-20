@@ -5,7 +5,7 @@ import '../../core/services/pos_extended_service.dart';
 
 class OperationsScreen extends ConsumerStatefulWidget {
   const OperationsScreen({super.key});
-  @override State<OperationsScreen> createState()=>_OperationsScreenState();
+  @override ConsumerState<OperationsScreen> createState()=>_OperationsScreenState();
 }
 
 class _OperationsScreenState extends ConsumerState<OperationsScreen> {

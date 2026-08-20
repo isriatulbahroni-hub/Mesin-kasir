@@ -6,7 +6,7 @@ import '../../../models/product.dart';
 import '../barcode_lookup.dart';
 import '../providers/cart_provider.dart';
 import '../providers/pos_provider.dart';
-import '../barcode_scanner_screen.dart';
+import '../../products/barcode_scanner_screen.dart';
 
 class ProductGrid extends ConsumerWidget {
   const ProductGrid({super.key});

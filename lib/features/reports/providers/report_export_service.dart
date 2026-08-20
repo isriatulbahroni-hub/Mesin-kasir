@@ -51,7 +51,7 @@ class ReportExportService {
           pw.SizedBox(height: 20),
           pw.Text('Rincian Harian', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
           pw.SizedBox(height: 8),
-          pw.Table.fromTextArray(
+          pw.TableHelper.fromTextArray(
             headers: ['Tanggal', 'Transaksi', 'Omzet'],
             data: [
               for (final d in summary.daily)

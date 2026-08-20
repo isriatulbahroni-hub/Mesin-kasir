@@ -77,7 +77,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
 
   /// Fallback untuk scanner hardware yang kadang tidak mengisi
   /// [KeyEvent.character] pada digit (umum di beberapa mode HID numpad).
-  static const _digitKeys = {
+  static final _digitKeys = {
     LogicalKeyboardKey.digit0: '0', LogicalKeyboardKey.numpad0: '0',
     LogicalKeyboardKey.digit1: '1', LogicalKeyboardKey.numpad1: '1',
     LogicalKeyboardKey.digit2: '2', LogicalKeyboardKey.numpad2: '2',

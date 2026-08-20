@@ -15,7 +15,7 @@ class DigitalReceiptService {
   /// salin teks, dll).
   Future<void> shareReceiptById(String transactionId) async {
     final text = await buildReceiptText(transactionId);
-    await SharePlus.instance.share(ShareParams(text: text, subject: 'Struk Belanja'));
+    await Share.share(text, subject: 'Struk Belanja');
   }
 
   Future<String> buildReceiptText(String transactionId) async {
