@@ -3,6 +3,10 @@ name: Flutter CI
 on:
   workflow_dispatch: {}
 
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   analyze-and-test:
     runs-on: ubuntu-latest
@@ -20,7 +24,57 @@ jobs:
         run: flutter pub get
 
       - name: Analyze
-        run: flutter analyze
+        id: analyze
+        run: |
+          set +e
+          flutter analyze > analyze_output.txt 2>&1
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          cat analyze_output.txt
+
+      - name: Post analyze output as GitHub Issue (kalau gagal)
+        if: steps.analyze.outputs.exit_code != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          head -c 60000 analyze_output.txt > analyze_output_trunc.txt
+          gh issue create \
+            --repo "${{ github.repository }}" \
+            --title "CI: flutter analyze FAILED - run ${{ github.run_id }}" \
+            --body-file analyze_output_trunc.txt \
+            --label "ci-failure" || \
+          gh issue create \
+            --repo "${{ github.repository }}" \
+            --title "CI: flutter analyze FAILED - run ${{ github.run_id }}" \
+            --body-file analyze_output_trunc.txt
+
+      - name: Gagalkan step kalau analyze error
+        if: steps.analyze.outputs.exit_code != '0'
+        run: exit 1
 
       - name: Unit/widget tests
-        run: flutter test
+        id: test
+        run: |
+          set +e
+          flutter test > test_output.txt 2>&1
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          cat test_output.txt
+
+      - name: Post test output as GitHub Issue (kalau gagal)
+        if: steps.test.outputs.exit_code != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          head -c 60000 test_output.txt > test_output_trunc.txt
+          gh issue create \
+            --repo "${{ github.repository }}" \
+            --title "CI: flutter test FAILED - run ${{ github.run_id }}" \
+            --body-file test_output_trunc.txt \
+            --label "ci-failure" || \
+          gh issue create \
+            --repo "${{ github.repository }}" \
+            --title "CI: flutter test FAILED - run ${{ github.run_id }}" \
+            --body-file test_output_trunc.txt
+
+      - name: Gagalkan step kalau test error
+        if: steps.test.outputs.exit_code != '0'
+        run: exit 1
