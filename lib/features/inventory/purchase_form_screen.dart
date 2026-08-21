@@ -8,9 +8,9 @@ import 'providers/inventory_provider.dart';
 
 class _RestockLine {
   final Product product;
-  int quantity;
+  int quantity = 1;
   int costPrice;
-  _RestockLine({required this.product, this.quantity = 1, required this.costPrice});
+  _RestockLine({required this.product, required this.costPrice});
 }
 
 class PurchaseFormScreen extends ConsumerStatefulWidget {
