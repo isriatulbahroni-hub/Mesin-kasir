@@ -1,0 +1,42 @@
+name: Build APK
+
+# Build APK release (belum ditandatangani pakai keystore production - masih
+# pakai debug signing bawaan Flutter, JADI INI CUKUP BUAT DICOBA SENDIRI /
+# dibagikan ke tim buat testing, TAPI BELUM SIAP diupload ke Play Store).
+#
+# Cara download APK-nya setelah workflow ini selesai (dari HP):
+#   1. Buka tab Actions repo ini
+#   2. Klik run "Build APK" yang terbaru (ada centang hijau)
+#   3. Scroll ke bawah ke bagian "Artifacts"
+#   4. Tap "kasir-pro-release-apk" -> otomatis download file .zip
+#   5. Extract .zip-nya (paling gampang lewat app "Files" bawaan Android,
+#      atau app ZIP Extractor kalau belum ada), baru install app-release.apk
+#      (mungkin perlu izinkan "Install dari sumber tidak dikenal" dulu)
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build APK (release)
+        run: flutter build apk --release
+
+      - name: Upload APK sebagai artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kasir-pro-release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30
