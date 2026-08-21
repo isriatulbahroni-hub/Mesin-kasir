@@ -502,12 +502,12 @@ class _SplitEntryRowState extends State<_SplitEntryRow> {
           Expanded(
             flex: 2,
             child: DropdownButtonFormField<PaymentMethod>(
-              // ignore: deprecated_member_use
               // Sengaja tetap pakai `value:` (bukan `initialValue:` yang
               // disarankan linter) - initialValue cuma dipakai sekali saat
               // build pertama, tidak reaktif kalau widget.entry.method
               // berubah dari luar. `value:` di sini memang diperlukan biar
               // dropdown selalu sinkron dengan state split payment.
+              // ignore: deprecated_member_use
               value: widget.entry.method,
               isExpanded: true,
               decoration: const InputDecoration(isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10)),
