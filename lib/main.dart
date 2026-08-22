@@ -10,6 +10,35 @@ import 'features/security/pin_lock_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Kalau ada widget yang gagal di-build (exception di dalam build()), Flutter
+  // biasanya nampilin layar generik/kosong di release mode - susah didebug.
+  // Override ini bikin error ASLINYA selalu kelihatan di layar, baik pas
+  // development maupun pas testing APK di HP. Murni API bawaan Flutter,
+  // tidak nambah dependency, aman dipakai di production.
+  ErrorWidget.builder = (FlutterErrorDetails details) {
+    return Material(
+      color: Colors.black,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 40),
+              const SizedBox(height: 12),
+              Text(
+                details.exceptionAsString(),
+                style: const TextStyle(color: Colors.white, fontSize: 12),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  };
+
   await initializeDateFormatting('id_ID', null);
   await SupabaseConfig.initialize();
   runApp(const ProviderScope(child: KasirProApp()));

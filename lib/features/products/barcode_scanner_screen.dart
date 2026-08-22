@@ -127,6 +127,18 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
             MobileScanner(
               controller: controller,
               onDetect: _onDetect,
+              // Signature ini sudah diverifikasi langsung dari source code
+              // mobile_scanner v6.0.2 di GitHub (bukan tebakan) - kalau kamera
+              // gagal start karena alasan APA PUN, detail errornya sekarang
+              // beneran ditampilkan, bukan cuma layar hitam kosong.
+              errorBuilder: (context, error, child) => _PermissionMessage(
+                icon: Icons.error_outline_rounded,
+                title: 'Kamera gagal dibuka',
+                message: '${error.errorCode.name}'
+                    '${error.errorDetails?.message != null ? '\n${error.errorDetails!.message}' : ''}',
+                buttonLabel: 'Coba Lagi',
+                onPressed: () => setState(() {}),
+              ),
             ),
             Center(
               child: Container(
