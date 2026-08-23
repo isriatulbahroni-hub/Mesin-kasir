@@ -12,6 +12,10 @@ class Promotion {
   final DateTime startsAt;
   final DateTime endsAt;
   final bool isActive;
+  final List<int>? activeDays; // 0=Minggu..6=Sabtu, null=semua hari
+  final String? activeTimeStart; // format "HH:mm:ss" dari Postgres time
+  final String? activeTimeEnd;
+  final bool autoApply; // true = otomatis aktif tanpa kode (mis. happy hour)
 
   Promotion({
     required this.id,
@@ -27,7 +31,40 @@ class Promotion {
     required this.startsAt,
     required this.endsAt,
     required this.isActive,
+    this.activeDays,
+    this.activeTimeStart,
+    this.activeTimeEnd,
+    this.autoApply = false,
   });
+
+  bool get hasScheduleRestriction => activeDays != null || activeTimeStart != null;
+
+  /// Cek jadwal (hari+jam) berlaku SEKARANG - dipakai buat tampilan lokal,
+  /// validasi final tetap di server (RPC find_promotion_by_code /
+  /// get_active_automatic_promotions) supaya jam HP customer/kasir yang
+  /// salah setel gak bisa dimanfaatkan buat mengakali promo.
+  bool isInScheduleNow() {
+    final now = DateTime.now();
+    if (activeDays != null && !activeDays!.contains(now.weekday % 7)) return false;
+    if (activeTimeStart != null && activeTimeEnd != null) {
+      final nowMinutes = now.hour * 60 + now.minute;
+      final start = _parseTimeToMinutes(activeTimeStart!);
+      final end = _parseTimeToMinutes(activeTimeEnd!);
+      if (start != null && end != null && !(nowMinutes >= start && nowMinutes <= end)) return false;
+    }
+    return true;
+  }
+
+  static int? _parseTimeToMinutes(String hhmmss) {
+    final parts = hhmmss.split(':');
+    if (parts.length < 2) return null;
+    final h = int.tryParse(parts[0]);
+    final m = int.tryParse(parts[1]);
+    if (h == null || m == null) return null;
+    return h * 60 + m;
+  }
+
+  static const dayLabels = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 
   /// Tipe yang bisa dihitung & diterapkan otomatis oleh app saat ini.
   /// 'buy_x_get_y'/'bundle' butuh logika substitusi item yang belum dibuat.
@@ -69,5 +106,11 @@ class Promotion {
         startsAt: DateTime.parse(json['starts_at'] as String),
         endsAt: DateTime.parse(json['ends_at'] as String),
         isActive: json['is_active'] as bool? ?? true,
+        activeDays: json['active_days'] == null
+            ? null
+            : (json['active_days'] as List).map((e) => e as int).toList(),
+        activeTimeStart: json['active_time_start'] as String?,
+        activeTimeEnd: json['active_time_end'] as String?,
+        autoApply: json['auto_apply'] as bool? ?? false,
       );
 }

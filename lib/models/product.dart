@@ -10,6 +10,8 @@ class Product {
   final int? stock;
   final int lowStockThreshold;
   final bool isActive;
+  final String? defaultSupplierId;
+  final int? reorderQuantity;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -25,6 +27,8 @@ class Product {
     this.stock,
     required this.lowStockThreshold,
     required this.isActive,
+    this.defaultSupplierId,
+    this.reorderQuantity,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -45,6 +49,8 @@ class Product {
         stock: json['stock'] == null ? null : (json['stock'] as num).toInt(),
         lowStockThreshold: (json['low_stock_threshold'] as num?)?.toInt() ?? 5,
         isActive: json['is_active'] as bool? ?? true,
+        defaultSupplierId: json['default_supplier_id'] as String?,
+        reorderQuantity: json['reorder_quantity'] == null ? null : (json['reorder_quantity'] as num).toInt(),
         createdAt: DateTime.parse(json['created_at'] as String),
         updatedAt: DateTime.parse(json['updated_at'] as String),
       );
@@ -60,5 +66,7 @@ class Product {
         'stock': stock,
         'low_stock_threshold': lowStockThreshold,
         'is_active': isActive,
+        'default_supplier_id': defaultSupplierId,
+        'reorder_quantity': reorderQuantity,
       };
 }

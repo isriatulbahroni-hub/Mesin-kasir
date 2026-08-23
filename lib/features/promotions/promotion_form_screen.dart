@@ -24,6 +24,13 @@ class _PromotionFormScreenState extends ConsumerState<PromotionFormScreen> {
   DateTime _endsAt = DateTime.now().add(const Duration(days: 30));
   bool _submitting = false;
 
+  // Dynamic pricing (jadwal berulang) - opsional, buat happy hour/harga weekend dll.
+  bool _useSchedule = false;
+  final Set<int> _selectedDays = {}; // 0=Minggu..6=Sabtu
+  TimeOfDay? _timeStart;
+  TimeOfDay? _timeEnd;
+  bool _autoApply = false;
+
   @override
   void dispose() {
     for (final c in [_nameCtrl, _valueCtrl, _minPurchaseCtrl, _maxDiscountCtrl, _usageLimitCtrl, _codeCtrl]) { c.dispose(); }
@@ -65,6 +72,14 @@ class _PromotionFormScreenState extends ConsumerState<PromotionFormScreen> {
             code: _type == 'voucher' ? _codeCtrl.text : null,
             startsAt: _startsAt,
             endsAt: _endsAt,
+            activeDays: (_useSchedule && _selectedDays.isNotEmpty) ? _selectedDays.toList() : null,
+            activeTimeStart: (_useSchedule && _timeStart != null)
+                ? '${_timeStart!.hour.toString().padLeft(2, '0')}:${_timeStart!.minute.toString().padLeft(2, '0')}:00'
+                : null,
+            activeTimeEnd: (_useSchedule && _timeEnd != null)
+                ? '${_timeEnd!.hour.toString().padLeft(2, '0')}:${_timeEnd!.minute.toString().padLeft(2, '0')}:00'
+                : null,
+            autoApply: _useSchedule && _autoApply,
           );
       if (mounted) Navigator.pop(context);
     } catch (e) {
@@ -75,6 +90,8 @@ class _PromotionFormScreenState extends ConsumerState<PromotionFormScreen> {
       if (mounted) setState(() => _submitting = false);
     }
   }
+
+  String _dayShortLabel(int i) => const ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'][i];
 
   @override
   Widget build(BuildContext context) {
@@ -161,6 +178,64 @@ class _PromotionFormScreenState extends ConsumerState<PromotionFormScreen> {
                 ),
               ]),
               const SizedBox(height: 20),
+              const Divider(),
+              const SizedBox(height: 8),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Jadwal Berulang (Dynamic Pricing)'),
+                subtitle: const Text('Batasi promo ke hari/jam tertentu, mis. happy hour atau harga weekend'),
+                value: _useSchedule,
+                onChanged: (v) => setState(() => _useSchedule = v),
+              ),
+              if (_useSchedule) ...[
+                const SizedBox(height: 8),
+                const Text('Hari aktif (kosongkan = semua hari)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 6,
+                  children: [
+                    for (int i = 0; i < 7; i++)
+                      FilterChip(
+                        label: Text(_dayShortLabel(i)),
+                        selected: _selectedDays.contains(i),
+                        onSelected: (sel) => setState(() {
+                          if (sel) { _selectedDays.add(i); } else { _selectedDays.remove(i); }
+                        }),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () async {
+                        final picked = await showTimePicker(context: context, initialTime: _timeStart ?? const TimeOfDay(hour: 0, minute: 0));
+                        if (picked != null) setState(() => _timeStart = picked);
+                      },
+                      child: Text(_timeStart == null ? 'Jam Mulai (opsional)' : 'Mulai: ${_timeStart!.format(context)}'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () async {
+                        final picked = await showTimePicker(context: context, initialTime: _timeEnd ?? const TimeOfDay(hour: 23, minute: 59));
+                        if (picked != null) setState(() => _timeEnd = picked);
+                      },
+                      child: Text(_timeEnd == null ? 'Jam Selesai (opsional)' : 'Selesai: ${_timeEnd!.format(context)}'),
+                    ),
+                  ),
+                ]),
+                const SizedBox(height: 8),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Otomatis aktif tanpa kode'),
+                  subtitle: const Text('Kasir langsung lihat promo ini aktif kalau jadwalnya cocok, gak perlu input kode'),
+                  value: _autoApply,
+                  onChanged: (v) => setState(() => _autoApply = v),
+                ),
+              ],
+              const SizedBox(height: 12),
               ElevatedButton(
                 onPressed: _submitting ? null : _submit,
                 style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(52)),

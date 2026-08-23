@@ -7,6 +7,7 @@ import '../../core/providers/lock_provider.dart';
 import '../../core/providers/session_provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/providers/auth_provider.dart';
+import '../promotions/providers/promotions_provider.dart';
 import '../security/pin_setup_screen.dart';
 import 'barcode_lookup.dart';
 import 'providers/cart_provider.dart';
@@ -140,6 +141,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                 : const SizedBox.shrink(),
             orElse: () => const SizedBox.shrink(),
           ),
+          const _ActivePromoBanner(),
           Expanded(
             child: isWide
                 ? const Row(
@@ -264,6 +266,45 @@ class _CartFab extends ConsumerWidget {
         icon: const Icon(Icons.shopping_cart_rounded),
         label: Text('${cart.itemCount} item'),
       ),
+    );
+  }
+}
+
+/// Banner promo "Dynamic Pricing" (auto_apply=true) yang jadwalnya (hari/jam)
+/// lagi cocok SEKARANG — kasir langsung tahu ada promo happy hour dll yang
+/// jalan, tanpa customer perlu tahu/masukin kode apapun. Validasi jadwal
+/// dihitung server (RPC get_active_automatic_promotions), bukan cuma di
+/// client, supaya jam HP yang salah setel gak bisa dimanfaatkan.
+class _ActivePromoBanner extends ConsumerWidget {
+  const _ActivePromoBanner();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final promosAsync = ref.watch(activeAutomaticPromotionsProvider);
+
+    return promosAsync.maybeWhen(
+      data: (promos) {
+        if (promos.isEmpty) return const SizedBox.shrink();
+        return Container(
+          width: double.infinity,
+          color: AppColors.successBg,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            children: [
+              const Icon(Icons.bolt_rounded, color: AppColors.emerald600, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Promo aktif sekarang: ${promos.map((p) => p.name).join(', ')}',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.emerald700),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+      orElse: () => const SizedBox.shrink(),
     );
   }
 }

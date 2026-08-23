@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
+import 'draft_purchase_review_screen.dart';
 import 'providers/inventory_provider.dart';
 import 'purchase_form_screen.dart';
 import 'stock_opname_form_screen.dart';
@@ -15,6 +16,7 @@ class InventoryScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final suppliersAsync = ref.watch(suppliersProvider);
     final purchasesAsync = ref.watch(purchaseHistoryProvider);
+    final draftsAsync = ref.watch(draftPurchasesProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Inventory')),
@@ -22,10 +24,30 @@ class InventoryScreen extends ConsumerWidget {
         onRefresh: () async {
           ref.invalidate(suppliersProvider);
           ref.invalidate(purchaseHistoryProvider);
+          ref.invalidate(draftPurchasesProvider);
         },
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            draftsAsync.maybeWhen(
+              data: (drafts) => drafts.isEmpty
+                  ? const SizedBox.shrink()
+                  : Card(
+                      color: AppColors.warningBg,
+                      child: ListTile(
+                        leading: const Icon(Icons.auto_awesome_rounded, color: AppColors.warning),
+                        title: Text('${drafts.length} Draft PO otomatis menunggu review',
+                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                        subtitle: const Text('Dibuat sistem karena stok tembus ambang minimum',
+                            style: TextStyle(fontSize: 11)),
+                        trailing: const Icon(Icons.chevron_right_rounded),
+                        onTap: () => Navigator.push(
+                            context, MaterialPageRoute(builder: (_) => const DraftPurchaseReviewScreen())),
+                      ),
+                    ),
+              orElse: () => const SizedBox.shrink(),
+            ),
+            const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(

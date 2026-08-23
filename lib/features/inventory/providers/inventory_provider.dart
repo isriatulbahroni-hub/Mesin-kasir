@@ -3,6 +3,7 @@ import '../../../core/providers/session_provider.dart';
 import '../../../core/providers/supabase_provider.dart';
 import '../../../models/product.dart';
 import '../../../models/purchase.dart';
+import '../../../models/purchase_item.dart';
 import '../../../models/supplier.dart';
 
 final suppliersProvider = FutureProvider.autoDispose<List<Supplier>>((ref) async {
@@ -18,6 +19,32 @@ final suppliersProvider = FutureProvider.autoDispose<List<Supplier>>((ref) async
   return (data as List).map((e) => Supplier.fromJson(e)).toList();
 });
 
+/// PO berstatus 'draft' — hasil auto-generate sistem waktu stok tembus
+/// ambang minimum (produk yang punya default_supplier_id), menunggu
+/// direview & di-confirm admin sebelum stok beneran nambah.
+final draftPurchasesProvider = FutureProvider.autoDispose<List<Purchase>>((ref) async {
+  final staff = await ref.watch(currentStaffProvider.future);
+  if (staff == null) return [];
+  final client = ref.watch(supabaseClientProvider);
+  final data = await client
+      .from('purchases')
+      .select()
+      .eq('store_id', staff.storeId)
+      .eq('status', 'draft')
+      .order('created_at', ascending: false);
+  return (data as List).map((e) => Purchase.fromJson(e)).toList();
+});
+
+final purchaseItemsProvider =
+    FutureProvider.autoDispose.family<List<PurchaseItem>, String>((ref, purchaseId) async {
+  final client = ref.watch(supabaseClientProvider);
+  final data = await client
+      .from('purchase_items')
+      .select('*, products(name)')
+      .eq('purchase_id', purchaseId);
+  return (data as List).map((e) => PurchaseItem.fromJson(e)).toList();
+});
+
 final purchaseHistoryProvider = FutureProvider.autoDispose<List<Purchase>>((ref) async {
   final staff = await ref.watch(currentStaffProvider.future);
   if (staff == null) return [];
@@ -26,6 +53,7 @@ final purchaseHistoryProvider = FutureProvider.autoDispose<List<Purchase>>((ref)
       .from('purchases')
       .select()
       .eq('store_id', staff.storeId)
+      .neq('status', 'draft')
       .order('created_at', ascending: false)
       .limit(50);
   return (data as List).map((e) => Purchase.fromJson(e)).toList();
@@ -129,6 +157,42 @@ class InventoryController extends StateNotifier<AsyncValue<void>> {
       return null;
     } on Object catch (e) {
       state = AsyncError(e, StackTrace.current);
+      return _friendly(e);
+    }
+  }
+
+  /// Review & konfirmasi draft PO (hasil auto reorder point) — stok BARU
+  /// bertambah di sini, bukan pas draft dibuat. Admin bisa koreksi qty/harga
+  /// dulu sebelum final.
+  Future<String?> confirmDraftPurchase({
+    required String purchaseId,
+    required List<Map<String, dynamic>> items, // [{purchase_item_id, quantity, cost_price}]
+  }) async {
+    state = const AsyncLoading();
+    try {
+      final client = _ref.read(supabaseClientProvider);
+      await client.rpc('confirm_draft_purchase', params: {
+        'p_purchase_id': purchaseId,
+        'p_items': items,
+      });
+      _ref.invalidate(draftPurchasesProvider);
+      _ref.invalidate(purchaseHistoryProvider);
+      _ref.invalidate(inventoryProductListProvider);
+      state = const AsyncData(null);
+      return null;
+    } on Object catch (e) {
+      state = AsyncError(e, StackTrace.current);
+      return _friendly(e);
+    }
+  }
+
+  Future<String?> dismissDraftPurchase(String purchaseId) async {
+    try {
+      final client = _ref.read(supabaseClientProvider);
+      await client.rpc('dismiss_draft_purchase', params: {'p_purchase_id': purchaseId});
+      _ref.invalidate(draftPurchasesProvider);
+      return null;
+    } on Object catch (e) {
       return _friendly(e);
     }
   }

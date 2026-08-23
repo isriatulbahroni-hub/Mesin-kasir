@@ -5,6 +5,7 @@ class Purchase {
   final String purchaseNo;
   final int totalCost;
   final String? note;
+  final String status; // draft | received | cancelled
   final DateTime createdAt;
 
   Purchase({
@@ -14,8 +15,11 @@ class Purchase {
     required this.purchaseNo,
     required this.totalCost,
     this.note,
+    this.status = 'received',
     required this.createdAt,
   });
+
+  bool get isDraft => status == 'draft';
 
   factory Purchase.fromJson(Map<String, dynamic> json) => Purchase(
         id: json['id'] as String,
@@ -24,6 +28,7 @@ class Purchase {
         purchaseNo: json['purchase_no'] as String,
         totalCost: (json['total_cost'] as num).toInt(),
         note: json['note'] as String?,
+        status: json['status'] as String? ?? 'received',
         createdAt: DateTime.parse(json['created_at'] as String),
       );
 }

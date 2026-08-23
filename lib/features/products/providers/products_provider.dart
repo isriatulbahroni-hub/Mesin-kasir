@@ -25,6 +25,8 @@ class ProductFormController extends StateNotifier<AsyncValue<void>> {
     int? stock,
     required int lowStockThreshold,
     String? photoUrl,
+    String? defaultSupplierId,
+    int? reorderQuantity,
   }) async {
     state = const AsyncLoading();
     try {
@@ -42,6 +44,8 @@ class ProductFormController extends StateNotifier<AsyncValue<void>> {
         'cost_price': costPrice,
         'stock': stock,
         'low_stock_threshold': lowStockThreshold,
+        'default_supplier_id': defaultSupplierId,
+        'reorder_quantity': reorderQuantity,
         'updated_at': DateTime.now().toUtc().toIso8601String(),
       };
 

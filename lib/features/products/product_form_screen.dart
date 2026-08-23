@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../inventory/providers/inventory_provider.dart';
 import '../pos/providers/pos_provider.dart';
 import 'barcode_scanner_screen.dart';
 import 'providers/products_provider.dart';
@@ -21,17 +22,20 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   final _costCtrl = TextEditingController();
   final _stockCtrl = TextEditingController();
   final _thresholdCtrl = TextEditingController(text: '5');
+  final _reorderQtyCtrl = TextEditingController();
   String? _categoryId;
+  String? _defaultSupplierId;
   bool _tracksStock = true, _loaded = false, _submitting = false;
   bool get isEditing => widget.productId != null;
 
   @override
-  void dispose() { for (final c in [_nameCtrl,_skuCtrl,_priceCtrl,_costCtrl,_stockCtrl,_thresholdCtrl]) { c.dispose(); } super.dispose(); }
+  void dispose() { for (final c in [_nameCtrl,_skuCtrl,_priceCtrl,_costCtrl,_stockCtrl,_thresholdCtrl,_reorderQtyCtrl]) { c.dispose(); } super.dispose(); }
 
   void _hydrate(dynamic p) {
     if (_loaded || p == null) return;
     _loaded = true; _nameCtrl.text=p.name; _skuCtrl.text=p.sku??''; _priceCtrl.text=p.sellingPrice.toString(); _costCtrl.text=p.costPrice.toString();
     _tracksStock=p.stock!=null; if(p.stock!=null) _stockCtrl.text=p.stock.toString(); _thresholdCtrl.text=p.lowStockThreshold.toString(); _categoryId=p.categoryId;
+    _defaultSupplierId=p.defaultSupplierId; if(p.reorderQuantity!=null) _reorderQtyCtrl.text=p.reorderQuantity.toString();
   }
 
   Future<void> _scanSku() async {
@@ -59,6 +63,40 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         const SizedBox(height:12),
         SwitchListTile(contentPadding:EdgeInsets.zero,title:const Text('Lacak stok produk ini'),subtitle:const Text('Matikan untuk produk jasa / tanpa stok fisik'),value:_tracksStock,onChanged:(v)=>setState(()=>_tracksStock=v),activeThumbColor:AppColors.emerald600),
         if(_tracksStock) Row(children:[Expanded(child:TextFormField(controller:_stockCtrl,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Stok'))),const SizedBox(width:12),Expanded(child:TextFormField(controller:_thresholdCtrl,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Ambang stok menipis')))]),
+        if(_tracksStock) const SizedBox(height:16),
+        if(_tracksStock) const Text('Reorder Point (opsional)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+        if(_tracksStock) const SizedBox(height:4),
+        if(_tracksStock) const Text(
+          'Kalau diisi, sistem otomatis bikin draft Purchase Order ke supplier ini '
+          'begitu stok tembus ambang minimum - tinggal direview & konfirmasi, gak perlu mulai dari nol.',
+          style: TextStyle(fontSize: 11.5, color: AppColors.charcoal500),
+        ),
+        if(_tracksStock) const SizedBox(height:10),
+        if(_tracksStock) Consumer(builder: (context, ref, _) {
+          final suppliersAsync = ref.watch(suppliersProvider);
+          return suppliersAsync.when(
+            data: (suppliers) => DropdownButtonFormField<String>(
+              initialValue: _defaultSupplierId,
+              decoration: const InputDecoration(labelText: 'Supplier Default'),
+              items: [
+                const DropdownMenuItem(value: null, child: Text('Tidak ada (matikan auto-reorder)')),
+                for (final s in suppliers) DropdownMenuItem(value: s.id, child: Text(s.name)),
+              ],
+              onChanged: (v) => setState(() => _defaultSupplierId = v),
+            ),
+            loading: () => const LinearProgressIndicator(),
+            error: (_, __) => const SizedBox.shrink(),
+          );
+        }),
+        if(_tracksStock && _defaultSupplierId != null) const SizedBox(height:12),
+        if(_tracksStock && _defaultSupplierId != null) TextFormField(
+          controller: _reorderQtyCtrl,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: 'Qty Restock (opsional)',
+            helperText: 'Kosongkan buat pakai default: 2x ambang stok menipis',
+          ),
+        ),
         const SizedBox(height:16),
         ElevatedButton(onPressed:_submitting?null:_submit,style:ElevatedButton.styleFrom(minimumSize:const Size.fromHeight(50)),child:_submitting?const SizedBox(width:20,height:20,child:CircularProgressIndicator(strokeWidth:2,color:Colors.white)):const Text('Simpan Produk')),
       ]))),
@@ -67,7 +105,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
 
   Future<void> _submit() async {
     if(!_formKey.currentState!.validate()) return; setState(()=>_submitting=true);
-    final error=await ref.read(productFormControllerProvider.notifier).save(id:widget.productId,name:_nameCtrl.text.trim(),sku:_skuCtrl.text.trim().isEmpty?null:_skuCtrl.text.trim(),categoryId:_categoryId,sellingPrice:int.parse(_priceCtrl.text.trim()),costPrice:int.parse(_costCtrl.text.trim()),stock:_tracksStock?(int.tryParse(_stockCtrl.text.trim())??0):null,lowStockThreshold:int.tryParse(_thresholdCtrl.text.trim())??5);
+    final error=await ref.read(productFormControllerProvider.notifier).save(id:widget.productId,name:_nameCtrl.text.trim(),sku:_skuCtrl.text.trim().isEmpty?null:_skuCtrl.text.trim(),categoryId:_categoryId,sellingPrice:int.parse(_priceCtrl.text.trim()),costPrice:int.parse(_costCtrl.text.trim()),stock:_tracksStock?(int.tryParse(_stockCtrl.text.trim())??0):null,lowStockThreshold:int.tryParse(_thresholdCtrl.text.trim())??5,defaultSupplierId:_tracksStock?_defaultSupplierId:null,reorderQuantity:_tracksStock?int.tryParse(_reorderQtyCtrl.text.trim()):null);
     if(!mounted)return; setState(()=>_submitting=false);
     if(error!=null) { ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(error))); } else { Navigator.pop(context); }
   }

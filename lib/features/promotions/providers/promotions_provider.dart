@@ -44,6 +44,18 @@ final promotionByIdProvider = FutureProvider.autoDispose.family<Promotion, Strin
   return Promotion.fromJson(data);
 });
 
+/// Promo yang aktif SEKARANG (tanggal+jam+hari cocok) DAN auto_apply=true -
+/// dipanggil server (bukan dihitung di client) supaya jam HP kasir yang
+/// salah setel gak bisa dimanfaatkan. Dipakai buat kasih tau kasir "ada
+/// promo happy hour lagi jalan" tanpa customer perlu tahu kode apapun.
+final activeAutomaticPromotionsProvider = FutureProvider.autoDispose<List<Promotion>>((ref) async {
+  final staff = await ref.watch(currentStaffProvider.future);
+  if (staff == null) return [];
+  final client = ref.watch(supabaseClientProvider);
+  final data = await client.rpc('get_active_automatic_promotions', params: {'p_store_id': staff.storeId});
+  return (data as List).map((e) => Promotion.fromJson(e as Map<String, dynamic>)).toList();
+});
+
 class PromotionController {
   PromotionController(this._ref);
   final Ref _ref;
@@ -77,6 +89,10 @@ class PromotionController {
     String? code,
     required DateTime startsAt,
     required DateTime endsAt,
+    List<int>? activeDays,
+    String? activeTimeStart, // format "HH:mm:00"
+    String? activeTimeEnd,
+    bool autoApply = false,
   }) async {
     final staff = await _ref.read(currentStaffProvider.future);
     if (staff == null) throw Exception('Sesi staff tidak ditemukan.');
@@ -91,6 +107,10 @@ class PromotionController {
       'code': (code?.trim().isEmpty ?? true) ? null : code!.trim().toUpperCase(),
       'starts_at': startsAt.toUtc().toIso8601String(),
       'ends_at': endsAt.toUtc().toIso8601String(),
+      'active_days': activeDays,
+      'active_time_start': activeTimeStart,
+      'active_time_end': activeTimeEnd,
+      'auto_apply': autoApply,
     });
   }
 
