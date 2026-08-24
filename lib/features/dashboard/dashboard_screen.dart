@@ -31,6 +31,7 @@ class DashboardScreen extends ConsumerWidget {
                       label: 'Omzet Hari Ini',
                       value: Formatters.rupiah(summary.todayRevenue),
                       color: AppColors.emerald600,
+                      onTap: () => context.push('/reports'),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -40,6 +41,7 @@ class DashboardScreen extends ConsumerWidget {
                       label: 'Transaksi',
                       value: '${summary.todayTransactionCount}',
                       color: AppColors.info,
+                      onTap: () => context.push('/history'),
                     ),
                   ),
                 ],
@@ -51,6 +53,7 @@ class DashboardScreen extends ConsumerWidget {
                 value: '${summary.todayItemsSold} item',
                 color: AppColors.charcoal700,
                 fullWidth: true,
+                onTap: () => context.push('/reports'),
               ),
               const SizedBox(height: 20),
               Row(
@@ -91,33 +94,46 @@ class _StatCard extends StatelessWidget {
   final String value;
   final Color color;
   final bool fullWidth;
+  final VoidCallback? onTap;
   const _StatCard({
     required this.icon,
     required this.label,
     required this.value,
     required this.color,
     this.fullWidth = false,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 36, height: 36,
-              decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
-              child: Icon(icon, color: color, size: 20),
-            ),
-            const SizedBox(height: 10),
-            Text(label, style: const TextStyle(fontSize: 12, color: AppColors.charcoal500)),
-            const SizedBox(height: 2),
-            Text(value,
-                style: TextStyle(fontSize: fullWidth ? 20 : 17, fontWeight: FontWeight.w800, color: AppColors.charcoal900)),
-          ],
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    width: 36, height: 36,
+                    decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+                    child: Icon(icon, color: color, size: 20),
+                  ),
+                  if (onTap != null)
+                    const Icon(Icons.chevron_right_rounded, color: AppColors.charcoal300, size: 20),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(label, style: const TextStyle(fontSize: 12, color: AppColors.charcoal500)),
+              const SizedBox(height: 2),
+              Text(value,
+                  style: TextStyle(fontSize: fullWidth ? 20 : 17, fontWeight: FontWeight.w800, color: AppColors.charcoal900)),
+            ],
+          ),
         ),
       ),
     );
