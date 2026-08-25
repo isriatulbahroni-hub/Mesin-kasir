@@ -77,7 +77,8 @@ class InventoryController extends StateNotifier<AsyncValue<void>> {
   InventoryController(this._ref) : super(const AsyncData(null));
   final Ref _ref;
 
-  Future<String?> addSupplier({
+  Future<String?> saveSupplier({
+    String? id,
     required String name,
     String? phone,
     String? address,
@@ -87,17 +88,33 @@ class InventoryController extends StateNotifier<AsyncValue<void>> {
       final staff = await _ref.read(currentStaffProvider.future);
       if (staff == null) return 'Sesi staff tidak ditemukan.';
       final client = _ref.read(supabaseClientProvider);
-      await client.from('suppliers').insert({
+      final payload = {
         'store_id': staff.storeId,
         'name': name,
         'phone': phone,
         'address': address,
         'note': note,
-      });
+      };
+      if (id == null) {
+        await client.from('suppliers').insert(payload);
+      } else {
+        await client.from('suppliers').update(payload).eq('id', id);
+      }
       _ref.invalidate(suppliersProvider);
       return null;
     } on Object catch (e) {
       return 'Gagal menyimpan supplier: $e';
+    }
+  }
+
+  Future<String?> setSupplierActive(String id, bool isActive) async {
+    try {
+      final client = _ref.read(supabaseClientProvider);
+      await client.from('suppliers').update({'is_active': isActive}).eq('id', id);
+      _ref.invalidate(suppliersProvider);
+      return null;
+    } on Object catch (e) {
+      return 'Gagal memperbarui supplier: $e';
     }
   }
 

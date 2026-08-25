@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers/session_provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
+import '../history/history_screen.dart';
 import 'providers/report_export_service.dart';
 import 'providers/reports_provider.dart';
 
@@ -152,6 +153,10 @@ class ReportsScreen extends ConsumerWidget {
                       subtitle: Text('${d.transactionCount} transaksi'),
                       trailing: Text(Formatters.rupiah(d.revenue),
                           style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.emerald700)),
+                      onTap: d.transactionCount == 0
+                          ? null
+                          : () => Navigator.push(context,
+                              MaterialPageRoute(builder: (_) => HistoryScreen(filterDate: d.date))),
                     ),
                   )),
             ],

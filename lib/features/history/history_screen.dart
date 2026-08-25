@@ -8,32 +8,36 @@ import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
 import '../../models/transaction.dart';
 
-final historyTransactionsProvider = FutureProvider.autoDispose<List<Transaction>>((ref) async {
+final historyTransactionsProvider =
+    FutureProvider.autoDispose.family<List<Transaction>, DateTime?>((ref, filterDate) async {
   final staff = await ref.watch(currentStaffProvider.future);
   if (staff == null) return [];
 
   final client = ref.watch(supabaseClientProvider);
-  final data = await client
-      .from('transactions')
-      .select()
-      .eq('store_id', staff.storeId)
-      .order('created_at', ascending: false)
-      .limit(100);
+  var query = client.from('transactions').select().eq('store_id', staff.storeId);
 
+  if (filterDate != null) {
+    final start = DateTime(filterDate.year, filterDate.month, filterDate.day);
+    final end = start.add(const Duration(days: 1));
+    query = query.gte('created_at', start.toUtc().toIso8601String()).lt('created_at', end.toUtc().toIso8601String());
+  }
+
+  final data = await query.order('created_at', ascending: false).limit(100);
   return (data as List).map((e) => Transaction.fromJson(e)).toList();
 });
 
 class HistoryScreen extends ConsumerWidget {
-  const HistoryScreen({super.key});
+  final DateTime? filterDate;
+  const HistoryScreen({super.key, this.filterDate});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final txAsync = ref.watch(historyTransactionsProvider);
+    final txAsync = ref.watch(historyTransactionsProvider(filterDate));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Riwayat Transaksi')),
+      appBar: AppBar(title: Text(filterDate != null ? 'Transaksi ${Formatters.date(filterDate!)}' : 'Riwayat Transaksi')),
       body: RefreshIndicator(
-        onRefresh: () async => ref.invalidate(historyTransactionsProvider),
+        onRefresh: () async => ref.invalidate(historyTransactionsProvider(filterDate)),
         child: txAsync.when(
           loading: () => const Center(child: CircularProgressIndicator(color: AppColors.emerald600)),
           error: (e, _) => Center(child: Text('Gagal memuat: $e')),

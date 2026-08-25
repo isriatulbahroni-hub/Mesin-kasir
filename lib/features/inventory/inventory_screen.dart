@@ -5,6 +5,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
 import 'draft_purchase_review_screen.dart';
 import 'providers/inventory_provider.dart';
+import 'purchase_detail_screen.dart';
 import 'purchase_form_screen.dart';
 import 'stock_opname_form_screen.dart';
 import 'supplier_form_screen.dart';
@@ -101,6 +102,9 @@ class InventoryScreen extends ConsumerWidget {
                           leading: const Icon(Icons.local_shipping_outlined),
                           title: Text(s.name),
                           subtitle: s.phone != null ? Text(s.phone!) : null,
+                          trailing: const Icon(Icons.chevron_right_rounded),
+                          onTap: () => Navigator.push(context,
+                              MaterialPageRoute(builder: (_) => SupplierFormScreen(supplier: s))),
                         ),
                       ),
                   ],
@@ -131,6 +135,8 @@ class InventoryScreen extends ConsumerWidget {
                           subtitle: Text(Formatters.dateTime(p.createdAt)),
                           trailing: Text(Formatters.rupiah(p.totalCost),
                               style: const TextStyle(fontWeight: FontWeight.w700)),
+                          onTap: () => Navigator.push(context,
+                              MaterialPageRoute(builder: (_) => PurchaseDetailScreen(purchase: p))),
                         ),
                       ),
                   ],
