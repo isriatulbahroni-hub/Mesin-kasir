@@ -26,6 +26,10 @@ import '../../features/kitchen/kitchen_screen.dart';
 import '../../features/approvals/approvals_screen.dart';
 import '../../features/devices/devices_screen.dart';
 import '../../features/qris/qris_settings_screen.dart';
+import '../../features/pulsa/pulsa_screen.dart';
+import '../../features/pulsa/pulsa_history_screen.dart';
+import '../../features/pulsa/pulsa_topup_screen.dart';
+import '../../features/pulsa/platform_owner_dashboard_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authNotifier = ValueNotifier<int>(0);
@@ -59,6 +63,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         GoRoute(path:'/promotions',builder:(context,state)=>const PromotionsScreen(),routes:[
           GoRoute(path:'new',builder:(context,state)=>const PromotionFormScreen()),
         ]),
+        GoRoute(path:'/pulsa',builder:(context,state)=>const PulsaScreen(),routes:[
+          GoRoute(path:'riwayat',builder:(context,state)=>const PulsaHistoryScreen()),
+          GoRoute(path:'topup',builder:(context,state)=>const PulsaTopupScreen()),
+        ]),
+        GoRoute(path:'/owner',builder:(context,state)=>const PlatformOwnerDashboardScreen()),
       ]),
     ],
   );
