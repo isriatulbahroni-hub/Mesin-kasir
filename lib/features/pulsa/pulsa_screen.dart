@@ -27,6 +27,19 @@ final ppobWalletBalanceProvider = FutureProvider.autoDispose<int>((ref) async {
   return (data?['balance'] as num?)?.toInt() ?? 0;
 });
 
+// Beda dari staff.role.canManage (owner/admin TOKO) -- ini khusus pemilik
+// platform Kasir Pro (lihat tabel platform_admins), yang berhak sync
+// katalog produk H2H buat SEMUA toko sekaligus.
+final isPlatformAdminProvider = FutureProvider.autoDispose<bool>((ref) async {
+  final client = ref.watch(supabaseClientProvider);
+  try {
+    final result = await client.rpc('is_platform_admin');
+    return result == true;
+  } catch (_) {
+    return false;
+  }
+});
+
 final ppobProductsProvider = FutureProvider.autoDispose<List<PpobProduct>>((ref) async {
   final client = ref.watch(supabaseClientProvider);
   final data = await client
