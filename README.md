@@ -44,13 +44,18 @@ RPC penting: `checkout_transaction` (atomic checkout + idempotency key + split p
 
 - `create-qris-payment` — generate QRIS dinamis via Midtrans Core API (`verify_jwt: true`)
 - `midtrans-webhook` — terima notifikasi pembayaran Midtrans, verifikasi signature, finalisasi transaksi (`verify_jwt: false`, keamanan dari signature Midtrans sendiri bukan Supabase JWT)
+- `h2h-sync-products` — tarik pricelist H2H.id (pulsa/paket_data/pln), terapkan margin, upsert ke `ppob_products`. Cuma platform admin (`verify_jwt: true`).
+- `h2h-order` — proses order pulsa/PPOB: reserve saldo toko (RPC) → panggil H2H.id → finalize (RPC). Dipanggil dari fitur Pulsa & Digital.
+- `h2h-status-check` — polling status order yang masih `pending` (H2H async, sering balas pending dulu).
 
 **QRIS dinamis butuh setup manual**: `supabase secrets set MIDTRANS_SERVER_KEY=... --project-ref gyibrbxvffqfxveckhcp`, lalu daftarkan webhook URL di dashboard Midtrans. Tanpa ini, QRIS statis (upload 1 gambar QRIS, konfirmasi manual) tetap jalan sebagai fallback.
 
+**Fitur Pulsa & Digital (H2H.id) butuh setup manual**: `supabase secrets set H2H_MEMBER_ID=... H2H_PIN=... H2H_PASSWORD=... --project-ref gyibrbxvffqfxveckhcp` (kredensial sama dengan akun H2H yang dipakai backend NexaPay/ppob-app). Setelah itu jalankan `h2h-sync-products` sekali (lewat tombol di app atau manual invoke) buat isi katalog awal.
+
 ## Role & Akses
 
-- **Kasir**: POS, Riwayat, Shift, Kitchen Display, Printer
-- **Admin/Owner**: + Dashboard, Produk, Inventory, Pelanggan, Promo, Laporan, Accounting, Approval, Device Management, void/refund
+- **Kasir**: POS, Riwayat, Shift, Kitchen Display, Printer, Pulsa & Digital (jual saja, tidak bisa top up saldo)
+- **Admin/Owner**: + Dashboard, Produk, Inventory, Pelanggan, Promo, Laporan, Accounting, Approval, Device Management, void/refund, Top Up Saldo Pulsa
 
 Akun staff dibuat manual oleh owner/admin lewat Supabase Dashboard (Authentication → Add User), lalu di-link ke tabel `staff`. Tidak ada self-registration. Kasir juga bisa dikunci dengan PIN 4-6 digit (lock screen otomatis saat app kembali dari background).
 
@@ -73,6 +78,7 @@ Akun staff dibuat manual oleh owner/admin lewat Supabase Dashboard (Authenticati
 - **PIN lock**: kunci layar per-kasir, reset via verifikasi password akun
 - **Audit log**: semua perubahan sensitif (harga, status transaksi, role staff, shift) tercatat otomatis
 - **Offline queue**: infrastruktur sinkronisasi (sqflite lokal + `offline_sync_queue`) — **status fungsional end-to-end belum tervalidasi penuh**
+- **Pulsa & Digital** (baru, 24 Agu 2026): jual pulsa/paket data/token PLN via H2H.id, menu terpisah dari POS. Saldo prepaid per toko (harus top up dulu), katalog + margin diatur terpusat oleh platform admin. Order async (bisa `pending` dulu, diselesaikan lewat polling status).
 
 ## Belum ada / belum lengkap
 
