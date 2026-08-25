@@ -75,6 +75,19 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
     });
   }
 
+  Future<void> _retryStartCamera() async {
+    // "Coba Lagi" harus beneran minta native camera start ulang, bukan cuma
+    // rebuild widget kosong (rebuild doang gak bikin kamera coba nyala lagi
+    // kalau controller-nya udah kepalang gagal start sebelumnya).
+    try {
+      await controller.start();
+    } catch (_) {
+      // Diamkan - errorBuilder MobileScanner akan tetap nampilin error
+      // terbaru kalau masih gagal, gak perlu double-handle di sini.
+    }
+    if (mounted) setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -137,7 +150,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
                 message: '${error.errorCode.name}'
                     '${error.errorDetails?.message != null ? '\n${error.errorDetails!.message}' : ''}',
                 buttonLabel: 'Coba Lagi',
-                onPressed: () => setState(() {}),
+                onPressed: _retryStartCamera,
               ),
             ),
             Center(

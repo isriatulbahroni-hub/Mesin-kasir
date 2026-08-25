@@ -51,6 +51,18 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- ML Kit (dipakai mobile_scanner) auto-install modul barcode scanning
+             lewat Google Play Services SAAT APLIKASI DI-INSTALL, bukan lazy-load
+             pas pertama kali buka scanner. Ini rekomendasi resmi Google:
+             https://developers.google.com/ml-kit/vision/barcode-scanning/android#4-optional-configure-app-to-automatically-download-the-ml-model-to-device-after-your-app-is-installed-from-the-play-store
+             Ditambahkan sebagai langkah mitigasi bug "kamera gagal dibuka di
+             release build" (genericError/getClass on null) yang juga
+             dilaporkan user lain di issue tracker mobile_scanner - kemungkinan
+             modul ML Kit belum siap saat kamera pertama kali dibuka. -->
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="barcode" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
