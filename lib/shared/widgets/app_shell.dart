@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/providers/session_provider.dart';
 import '../../core/theme/app_colors.dart';
+import '../../features/pulsa/pulsa_screen.dart';
 import 'app_sidebar.dart';
 
 const double _wideBreakpoint=900;
@@ -21,7 +22,13 @@ class AppShell extends ConsumerWidget {
   static const _kasirTabsFlat=[NavItem('/pos',Icons.point_of_sale_outlined,'Kasir',activeIcon:Icons.point_of_sale_rounded),NavItem('/history',Icons.receipt_long_outlined,'Riwayat',activeIcon:Icons.receipt_long_rounded),NavItem('/customers',Icons.people_outline_rounded,'Pelanggan',activeIcon:Icons.people_rounded),NavItem('/shift',Icons.access_time_outlined,'Shift',activeIcon:Icons.access_time_filled_rounded)];
   static const _managerTabsFlat=[NavItem('/pos',Icons.point_of_sale_outlined,'Kasir',activeIcon:Icons.point_of_sale_rounded),NavItem('/dashboard',Icons.dashboard_outlined,'Dashboard',activeIcon:Icons.dashboard_rounded),NavItem('/products',Icons.inventory_2_outlined,'Produk',activeIcon:Icons.inventory_2_rounded),NavItem('/customers',Icons.people_outline_rounded,'Pelanggan',activeIcon:Icons.people_rounded)];
   static const _moreTab=NavItem('__more__',Icons.more_horiz_rounded,'Lainnya',activeIcon:Icons.more_horiz_rounded);
-  @override Widget build(BuildContext context,WidgetRef ref){final staffAsync=ref.watch(currentStaffProvider);return staffAsync.when(loading:()=>const Scaffold(body:Center(child:CircularProgressIndicator(color:AppColors.emerald600))),error:(e,_)=>Scaffold(body:Center(child:Text('Gagal memuat sesi: $e'))),data:(staff){final manager=staff?.role.canManage??false;final location=GoRouterState.of(context).matchedLocation;return LayoutBuilder(builder:(context,c){final wide=c.maxWidth>=_wideBreakpoint;final groups=manager?_managerNavGroups:_kasirNavGroups;if(wide){return Scaffold(body:Row(children:[AppSidebar(groups:groups,currentLocation:location),Expanded(child:SafeArea(child:child))]));}
+  static const _ownerOnlyGroup=NavGroup(label:'Pemilik Aplikasi',items:[NavItem('/owner',Icons.admin_panel_settings_outlined,'Dashboard Pemilik',activeIcon:Icons.admin_panel_settings_rounded)]);
+  @override Widget build(BuildContext context,WidgetRef ref){final staffAsync=ref.watch(currentStaffProvider);
+    // Fail-closed: sampai eksplisit kekonfirmasi true, anggap BUKAN platform
+    // admin (loading/error dianggap false juga) -- jangan pernah nampilin
+    // menu pemilik cuma karena statusnya belum kebaca.
+    final isPlatformAdmin=ref.watch(isPlatformAdminProvider).maybeWhen(data:(v)=>v,orElse:()=>false);
+    return staffAsync.when(loading:()=>const Scaffold(body:Center(child:CircularProgressIndicator(color:AppColors.emerald600))),error:(e,_)=>Scaffold(body:Center(child:Text('Gagal memuat sesi: $e'))),data:(staff){final manager=staff?.role.canManage??false;final location=GoRouterState.of(context).matchedLocation;return LayoutBuilder(builder:(context,c){final wide=c.maxWidth>=_wideBreakpoint;final groups=[...manager?_managerNavGroups:_kasirNavGroups,if(isPlatformAdmin)_ownerOnlyGroup];if(wide){return Scaffold(body:Row(children:[AppSidebar(groups:groups,currentLocation:location),Expanded(child:SafeArea(child:child))]));}
     final directTabs=manager?_managerTabsFlat:_kasirTabsFlat;
     final directIdx=directTabs.indexWhere((t)=>location.startsWith(t.path));
     // Tab 'Lainnya' aktif kalau lokasi saat ini bukan salah satu dari 4 tab

@@ -29,6 +29,7 @@ import '../../features/qris/qris_settings_screen.dart';
 import '../../features/pulsa/pulsa_screen.dart';
 import '../../features/pulsa/pulsa_history_screen.dart';
 import '../../features/pulsa/pulsa_topup_screen.dart';
+import '../../features/pulsa/platform_owner_dashboard_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authNotifier = ValueNotifier<int>(0);
@@ -66,6 +67,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path:'riwayat',builder:(context,state)=>const PulsaHistoryScreen()),
           GoRoute(path:'topup',builder:(context,state)=>const PulsaTopupScreen()),
         ]),
+        GoRoute(path:'/owner',builder:(context,state)=>const PlatformOwnerDashboardScreen()),
       ]),
     ],
   );

@@ -6,6 +6,13 @@ import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
 import 'pulsa_screen.dart';
 
+// Halaman ini murni buat toko ajukan top up saldo -- SENGAJA tidak ada
+// apapun yang menyebut provider/supplier (H2H atau nama lain). Toko cuma
+// perlu tau "beli pulsa, top up saldo dulu", bukan urusan dari mana
+// modalnya diambil -- itu rahasia dagang pemilik platform. Fungsi sync
+// katalog & kelola harga ada di layar terpisah total: platform_owner_
+// dashboard_screen.dart, cuma bisa diakses pemilik platform.
+
 final ppobDepositsProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
   final staff = await ref.watch(currentStaffProvider.future);
   if (staff == null) return [];
@@ -28,27 +35,6 @@ class PulsaTopupScreen extends ConsumerStatefulWidget {
 class _PulsaTopupScreenState extends ConsumerState<PulsaTopupScreen> {
   final _amountCtrl = TextEditingController();
   bool _submitting = false;
-  bool _syncing = false;
-
-  Future<void> _syncCatalog() async {
-    setState(() => _syncing = true);
-    try {
-      final client = ref.read(supabaseClientProvider);
-      final res = await client.functions.invoke('h2h-sync-products', body: {'margin_percent': 5});
-      final data = res.data;
-      if (data is Map && data['error'] != null) {
-        throw Exception(data['error']);
-      }
-      final total = data is Map ? data['total_upserted'] : '?';
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Sync selesai: $total produk ter-update.')));
-      }
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Sync gagal: $e'), backgroundColor: Colors.red));
-    } finally {
-      if (mounted) setState(() => _syncing = false);
-    }
-  }
 
   @override
   void dispose() {
@@ -89,7 +75,6 @@ class _PulsaTopupScreenState extends ConsumerState<PulsaTopupScreen> {
   Widget build(BuildContext context) {
     final walletAsync = ref.watch(ppobWalletBalanceProvider);
     final depositsAsync = ref.watch(ppobDepositsProvider);
-    final isPlatformAdminAsync = ref.watch(isPlatformAdminProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -97,37 +82,6 @@ class _PulsaTopupScreenState extends ConsumerState<PulsaTopupScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          isPlatformAdminAsync.maybeWhen(
-            data: (isPlatformAdmin) => !isPlatformAdmin
-                ? const SizedBox.shrink()
-                : Container(
-                    margin: const EdgeInsets.only(bottom: 20),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(color: AppColors.emerald50, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.emerald200)),
-                    child: Row(
-                      children: [
-                        const Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Katalog Produk H2H', style: TextStyle(color: AppColors.charcoal900, fontWeight: FontWeight.w700)),
-                              SizedBox(height: 2),
-                              Text('Tarik ulang harga & produk terbaru dari H2H.id (margin 5%)', style: TextStyle(color: AppColors.charcoal500, fontSize: 12)),
-                            ],
-                          ),
-                        ),
-                        ElevatedButton.icon(
-                          onPressed: _syncing ? null : _syncCatalog,
-                          icon: _syncing
-                              ? const SizedBox(height: 14, width: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                              : const Icon(Icons.sync_rounded, size: 18),
-                          label: const Text('Sync'),
-                        ),
-                      ],
-                    ),
-                  ),
-            orElse: () => const SizedBox.shrink(),
-          ),
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(color: AppColors.surfaceElevated, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
