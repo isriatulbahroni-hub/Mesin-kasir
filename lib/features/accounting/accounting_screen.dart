@@ -218,6 +218,82 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
     );
   }
 
+  Future<void> _showJournalDetail(Map<String, dynamic> journal) async {
+    List<Map<String, dynamic>> lines = [];
+    String? error;
+    try {
+      final rows = await _supabase
+          .from('accounting_journal_lines')
+          .select('debit, credit, description, accounting_accounts(code, name)')
+          .eq('journal_id', journal['id']);
+      lines = List<Map<String, dynamic>>.from(rows);
+    } catch (e) {
+      error = 'Gagal memuat baris jurnal: $e';
+    }
+
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('${journal['journal_no']}'),
+        content: SizedBox(
+          width: 400,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${journal['journal_date']} • ${journal['description'] ?? '-'}',
+                    style: const TextStyle(color: AppColors.charcoal500, fontSize: 12)),
+                const SizedBox(height: 12),
+                if (error != null) Text(error, style: const TextStyle(color: AppColors.danger)),
+                if (error == null && lines.isEmpty) const Text('Tidak ada baris jurnal.'),
+                for (final line in lines)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          flex: 3,
+                          child: Text(
+                            '${line['accounting_accounts']?['code'] ?? ''} ${line['accounting_accounts']?['name'] ?? '-'}',
+                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                          ),
+                        ),
+                        Expanded(
+                          flex: 2,
+                          child: Text(
+                            (line['debit'] as num?) != null && (line['debit'] as num) > 0
+                                ? Formatters.rupiah(line['debit'])
+                                : '',
+                            textAlign: TextAlign.right,
+                            style: const TextStyle(fontSize: 12.5),
+                          ),
+                        ),
+                        Expanded(
+                          flex: 2,
+                          child: Text(
+                            (line['credit'] as num?) != null && (line['credit'] as num) > 0
+                                ? Formatters.rupiah(line['credit'])
+                                : '',
+                            textAlign: TextAlign.right,
+                            style: const TextStyle(fontSize: 12.5, color: AppColors.emerald700),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Tutup')),
+        ],
+      ),
+    );
+  }
+
   Widget _buildJournalsTab() {
     return RefreshIndicator(
       onRefresh: _load,
@@ -231,7 +307,8 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
                   child: ListTile(
                     title: Text('${j['journal_no']}'),
                     subtitle: Text('${j['journal_date']} • ${j['description'] ?? '-'}'),
-                    trailing: Text('${j['source_type']}', style: const TextStyle(fontSize: 11)),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () => _showJournalDetail(j),
                   ),
                 )),
         ],
