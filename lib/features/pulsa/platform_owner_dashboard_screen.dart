@@ -27,6 +27,30 @@ final allPendingDepositsProvider = FutureProvider.autoDispose<List<Map<String, d
   return (data as List).cast<Map<String, dynamic>>();
 });
 
+// Dashboard pemilik butuh SEMUA kategori sekaligus (beda dari pulsa_screen.dart
+// yang sekarang fetch per-kategori) -- pagination penuh juga di sini, biar
+// gak kena limit default PostgREST 1000 baris (bug yang sama seperti
+// ppobProductsProvider sebelum diperbaiki, lihat catatan di pulsa_screen.dart).
+final allPpobProductsProvider = FutureProvider.autoDispose<List<PpobProduct>>((ref) async {
+  final client = ref.watch(supabaseClientProvider);
+  const pageSize = 1000;
+  final all = <PpobProduct>[];
+  var offset = 0;
+  while (true) {
+    final data = await client
+        .from('ppob_products')
+        .select()
+        .order('category')
+        .order('sell_price')
+        .range(offset, offset + pageSize - 1);
+    final page = (data as List).map((e) => PpobProduct.fromJson(e as Map<String, dynamic>)).toList();
+    all.addAll(page);
+    if (page.length < pageSize) break;
+    offset += pageSize;
+  }
+  return all;
+});
+
 class PlatformOwnerDashboardScreen extends ConsumerStatefulWidget {
   const PlatformOwnerDashboardScreen({super.key});
   @override
@@ -46,7 +70,7 @@ class _PlatformOwnerDashboardScreenState extends ConsumerState<PlatformOwnerDash
       final total = data is Map ? data['total_upserted'] : '?';
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Sync selesai: $total produk ter-update.')));
-        ref.invalidate(ppobProductsProvider);
+        ref.invalidate(allPpobProductsProvider);
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Sync gagal: $e'), backgroundColor: Colors.red));
@@ -121,7 +145,7 @@ class _PlatformOwnerDashboardScreenState extends ConsumerState<PlatformOwnerDash
       if (result == 'unauthorized') throw Exception('Bukan platform admin.');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Harga berhasil diupdate.')));
-        ref.invalidate(ppobProductsProvider);
+        ref.invalidate(allPpobProductsProvider);
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal: $e'), backgroundColor: Colors.red));
@@ -132,7 +156,7 @@ class _PlatformOwnerDashboardScreenState extends ConsumerState<PlatformOwnerDash
     try {
       final client = ref.read(supabaseClientProvider);
       await client.rpc('toggle_ppob_product_active', params: {'p_product_id': product.id});
-      ref.invalidate(ppobProductsProvider);
+      ref.invalidate(allPpobProductsProvider);
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal: $e'), backgroundColor: Colors.red));
     }
@@ -166,12 +190,12 @@ class _PlatformOwnerDashboardScreenState extends ConsumerState<PlatformOwnerDash
   }
 
   Widget _buildDashboard(BuildContext context) {
-    final productsAsync = ref.watch(ppobProductsProvider);
+    final productsAsync = ref.watch(allPpobProductsProvider);
     final depositsAsync = ref.watch(allPendingDepositsProvider);
 
     return RefreshIndicator(
       onRefresh: () async {
-        ref.invalidate(ppobProductsProvider);
+        ref.invalidate(allPpobProductsProvider);
         ref.invalidate(allPendingDepositsProvider);
       },
       child: ListView(

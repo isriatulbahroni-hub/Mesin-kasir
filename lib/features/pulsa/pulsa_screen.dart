@@ -66,15 +66,37 @@ final isPlatformAdminProvider = FutureProvider.autoDispose<bool>((ref) async {
   }
 });
 
-final ppobProductsProvider = FutureProvider.autoDispose<List<PpobProduct>>((ref) async {
+// BUG FIX (24 Agu 2026, ditemukan langsung dari testing di HP): sebelumnya
+// provider ini fetch SEMUA 8198 produk sekaligus tanpa pagination.
+// PostgREST punya limit default 1000 baris per request -- karena diurutkan
+// alfabetis per kategori (e_wallet, paket_data, paket_telp_sms, pln,
+// pulsa, voucher_game), kategori 'paket_data' SENDIRI (4009 baris) udah
+// ngelewatin limit itu, jadi 'pln'/'pulsa'/'voucher_game' (yang alfabetis
+// di belakang) TIDAK PERNAH kebaca sama sekali -- makanya tab Pulsa
+// selalu kosong walau datanya ada di database.
+//
+// Fix: family provider per-kategori (cuma fetch yang lagi ditampilkan,
+// lebih efisien juga) + loop pagination pakai .range() sampai semua baris
+// kebaca, berapa pun jumlahnya -- gak akan pernah ke-cut lagi ke depannya.
+final ppobProductsProvider = FutureProvider.autoDispose.family<List<PpobProduct>, String>((ref, category) async {
   final client = ref.watch(supabaseClientProvider);
-  final data = await client
-      .from('ppob_products')
-      .select()
-      .eq('is_active', true)
-      .order('category')
-      .order('sell_price');
-  return (data as List).map((e) => PpobProduct.fromJson(e as Map<String, dynamic>)).toList();
+  const pageSize = 1000;
+  final all = <PpobProduct>[];
+  var offset = 0;
+  while (true) {
+    final data = await client
+        .from('ppob_products')
+        .select()
+        .eq('is_active', true)
+        .eq('category', category)
+        .order('sell_price')
+        .range(offset, offset + pageSize - 1);
+    final page = (data as List).map((e) => PpobProduct.fromJson(e as Map<String, dynamic>)).toList();
+    all.addAll(page);
+    if (page.length < pageSize) break;
+    offset += pageSize;
+  }
+  return all;
 });
 
 // Deteksi game dari nama/operator produk, dipakai buat nentuin apakah
@@ -111,7 +133,7 @@ class _PulsaScreenState extends ConsumerState<PulsaScreen> {
   Widget build(BuildContext context) {
     final staffAsync = ref.watch(currentStaffProvider);
     final walletAsync = ref.watch(ppobWalletBalanceProvider);
-    final productsAsync = ref.watch(ppobProductsProvider);
+    final productsAsync = ref.watch(ppobProductsProvider(_selectedCategory));
     final destType = _destType;
     final detectedOperator = destType == _DestType.phoneWithOperator ? detectOperator(_destinationCtrl.text) : null;
 
@@ -140,7 +162,7 @@ class _PulsaScreenState extends ConsumerState<PulsaScreen> {
       body: RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(ppobWalletBalanceProvider);
-          ref.invalidate(ppobProductsProvider);
+          ref.invalidate(ppobProductsProvider(_selectedCategory));
         },
         child: Column(
           children: [
@@ -250,8 +272,6 @@ class _PulsaScreenState extends ConsumerState<PulsaScreen> {
                 loading: () => const Center(child: CircularProgressIndicator(color: AppColors.emerald600)),
                 error: (e, _) => Center(child: Text('Gagal memuat katalog: $e', style: const TextStyle(color: Colors.red))),
                 data: (products) {
-                  final byCategory = products.where((p) => p.category == _selectedCategory).toList();
-
                   if (destType == _DestType.phoneWithOperator) {
                     if (_destinationCtrl.text.trim().length < 4) {
                       return const Center(
@@ -272,11 +292,11 @@ class _PulsaScreenState extends ConsumerState<PulsaScreen> {
                   }
 
                   final filtered = destType == _DestType.phoneWithOperator
-                      ? byCategory.where((p) {
+                      ? products.where((p) {
                           final opName = (p.operatorName ?? '').toLowerCase();
                           return detectedOperator!.matchKeywords.any((kw) => opName.contains(kw));
                         }).toList()
-                      : byCategory;
+                      : products;
 
                   if (filtered.isEmpty) {
                     return const Center(
