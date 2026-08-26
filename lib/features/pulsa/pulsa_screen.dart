@@ -8,23 +8,38 @@ import '../../core/utils/formatters.dart';
 import '../../core/utils/operator_detector.dart';
 import '../../models/ppob_product.dart';
 
-// Fitur ini SENGAJA menu terpisah dari POS/Beranda (bukan dijual sebagai
-// "produk" di grid kasir) -- alurnya beda: pilih kategori, cari nomor
-// tujuan, tunggu respons provider (bisa pending), jadi butuh layar
-// sendiri biar gak ganggu kecepatan alur checkout utama.
+// Fitur ini SENGAJA menu terpisah dari POS/Beranda -- alurnya beda: pilih
+// kategori, cari nomor/ID tujuan, tunggu respons provider (bisa pending),
+// jadi butuh layar sendiri biar gak ganggu kecepatan alur checkout utama.
 //
 // Saldo yang dipakai di sini PRABAYAR per toko (store_ppob_wallets) --
 // toko harus top up dulu (lihat pulsa_topup_screen.dart) sebelum bisa jual.
 //
-// PENTING (per permintaan pemilik, 24 Agu 2026): Pulsa/Paket Data dan
-// Token PLN itu DUA ALUR BERBEDA, jangan dipukul rata:
-//   - Pulsa/Paket Data: tujuannya nomor HP, dan begitu diketik langsung
-//     kedeteksi operatornya (fitur "baca kartu") -- produk yang tampil
-//     otomatis difilter cuma yang cocok operatornya, biar kasir gak
-//     salah beli (misal beli produk Telkomsel buat nomor XL).
-//   - Token PLN: tujuannya ID Pelanggan/No. Meter (BUKAN nomor HP), gak
-//     ada konsep "operator" sama sekali, jadi semua produk PLN tampil
-//     tanpa filter.
+// PENTING (per permintaan pemilik, 24 Agu 2026): "semuanya produk harus
+// ada" -- 6 kategori disync dari H2H (bukan cuma pulsa/data/PLN), dan
+// masing-masing PUNYA ALUR INPUT SENDIRI sesuai jenis tujuannya, jangan
+// dipukul rata pakai 1 dialog "Nomor Tujuan" generik:
+//   - Pulsa/Paket Data/Telp&SMS: nomor HP, operator otomatis kedeteksi
+//     ("baca kartu"), produk difilter cuma yang cocok operatornya.
+//   - E-Wallet: nomor HP juga, TAPI TIDAK difilter by operator (GoPay/
+//     OVO/DANA jalan lintas operator SIM, gak ada hubungannya).
+//   - Token PLN: ID Pelanggan/No. Meter, ada tombol "Cek Nama Pelanggan"
+//     opsional sebelum beli (H2H punya endpoint /pln/check, gratis,
+//     gak butuh kredensial H2H).
+//   - Voucher Game: User ID (+ Zone ID khusus Mobile Legends), ada
+//     tombol "Cek Akun" opsional buat game yang didukung H2H
+//     (mobile-legends/free-fire/pubg-mobile).
+
+enum _DestType { phoneWithOperator, phoneNoFilter, meterOrId, gameAccount }
+
+const _categoryConfig = {
+  'pulsa': (label: 'Pulsa', destType: _DestType.phoneWithOperator),
+  'paket_data': (label: 'Paket Data', destType: _DestType.phoneWithOperator),
+  'paket_telp_sms': (label: 'Telp & SMS', destType: _DestType.phoneWithOperator),
+  'e_wallet': (label: 'E-Wallet', destType: _DestType.phoneNoFilter),
+  'pln': (label: 'Token PLN', destType: _DestType.meterOrId),
+  'voucher_game': (label: 'Voucher Game', destType: _DestType.gameAccount),
+};
 
 final ppobWalletBalanceProvider = FutureProvider.autoDispose<int>((ref) async {
   final staff = await ref.watch(currentStaffProvider.future);
@@ -62,15 +77,15 @@ final ppobProductsProvider = FutureProvider.autoDispose<List<PpobProduct>>((ref)
   return (data as List).map((e) => PpobProduct.fromJson(e as Map<String, dynamic>)).toList();
 });
 
-const _categoryLabels = {
-  'pulsa': 'Pulsa',
-  'paket_data': 'Paket Data',
-  'pln': 'Token PLN',
-};
-
-// Kategori yang tujuannya nomor HP (butuh deteksi operator). Di luar ini
-// (PLN) tujuannya ID pelanggan, bukan nomor HP.
-bool _isPhoneBasedCategory(String category) => category == 'pulsa' || category == 'paket_data';
+// Deteksi game dari nama/operator produk, dipakai buat nentuin apakah
+// tombol "Cek Akun" bisa ditampilkan (H2H cuma dukung 3 game ini).
+String? _detectGameSlug(PpobProduct p) {
+  final text = '${p.name} ${p.operatorName ?? ''}'.toLowerCase();
+  if (text.contains('mobile legend') || text.contains(' ml ') || text.startsWith('ml')) return 'mobile-legends';
+  if (text.contains('free fire') || text.contains('freefire') || text.contains(' ff ')) return 'free-fire';
+  if (text.contains('pubg')) return 'pubg-mobile';
+  return null;
+}
 
 class PulsaScreen extends ConsumerStatefulWidget {
   const PulsaScreen({super.key});
@@ -81,20 +96,24 @@ class PulsaScreen extends ConsumerStatefulWidget {
 class _PulsaScreenState extends ConsumerState<PulsaScreen> {
   String _selectedCategory = 'pulsa';
   final _destinationCtrl = TextEditingController();
+  final _zoneIdCtrl = TextEditingController();
 
   @override
   void dispose() {
     _destinationCtrl.dispose();
+    _zoneIdCtrl.dispose();
     super.dispose();
   }
+
+  _DestType get _destType => _categoryConfig[_selectedCategory]!.destType;
 
   @override
   Widget build(BuildContext context) {
     final staffAsync = ref.watch(currentStaffProvider);
     final walletAsync = ref.watch(ppobWalletBalanceProvider);
     final productsAsync = ref.watch(ppobProductsProvider);
-    final isPhoneBased = _isPhoneBasedCategory(_selectedCategory);
-    final detectedOperator = isPhoneBased ? detectOperator(_destinationCtrl.text) : null;
+    final destType = _destType;
+    final detectedOperator = destType == _DestType.phoneWithOperator ? detectOperator(_destinationCtrl.text) : null;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -153,19 +172,22 @@ class _PulsaScreenState extends ConsumerState<PulsaScreen> {
                 ],
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: _categoryLabels.entries.map((e) {
+            SizedBox(
+              height: 40,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                children: _categoryConfig.entries.map((e) {
                   final selected = _selectedCategory == e.key;
                   return Padding(
                     padding: const EdgeInsets.only(right: 8),
                     child: ChoiceChip(
-                      label: Text(e.value),
+                      label: Text(e.value.label),
                       selected: selected,
                       onSelected: (_) => setState(() {
                         _selectedCategory = e.key;
                         _destinationCtrl.clear();
+                        _zoneIdCtrl.clear();
                       }),
                       selectedColor: AppColors.emerald100,
                       labelStyle: TextStyle(color: selected ? AppColors.emerald700 : AppColors.charcoal700),
@@ -175,30 +197,52 @@ class _PulsaScreenState extends ConsumerState<PulsaScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            // ---- Input tujuan: beda label & perilaku per kategori ----
+            // ---- Input tujuan: BEDA field & perilaku per tipe kategori ----
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: TextField(
-                controller: _destinationCtrl,
-                keyboardType: isPhoneBased ? TextInputType.phone : TextInputType.number,
-                onChanged: (_) => setState(() {}),
-                decoration: InputDecoration(
-                  labelText: isPhoneBased ? 'Nomor HP Pelanggan' : 'ID Pelanggan / No. Meter',
-                  hintText: isPhoneBased ? '08xxxxxxxxxx' : 'mis. 5312xxxxxxxx',
-                  prefixIcon: Icon(isPhoneBased ? Icons.sim_card_outlined : Icons.bolt_outlined),
-                  suffixIcon: isPhoneBased && detectedOperator != null
-                      ? Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Chip(
-                            label: Text(detectedOperator.label, style: const TextStyle(fontSize: 11, color: AppColors.emerald700)),
-                            backgroundColor: AppColors.emerald100,
-                            visualDensity: VisualDensity.compact,
-                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              child: destType == _DestType.gameAccount
+                  ? Row(
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: TextField(
+                            controller: _destinationCtrl,
+                            keyboardType: TextInputType.number,
+                            onChanged: (_) => setState(() {}),
+                            decoration: const InputDecoration(labelText: 'User ID Game', prefixIcon: Icon(Icons.sports_esports_outlined)),
                           ),
-                        )
-                      : null,
-                ),
-              ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            controller: _zoneIdCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(labelText: 'Zone ID', hintText: 'khusus ML'),
+                          ),
+                        ),
+                      ],
+                    )
+                  : TextField(
+                      controller: _destinationCtrl,
+                      keyboardType: destType == _DestType.meterOrId ? TextInputType.number : TextInputType.phone,
+                      onChanged: (_) => setState(() {}),
+                      decoration: InputDecoration(
+                        labelText: destType == _DestType.meterOrId ? 'ID Pelanggan / No. Meter' : 'Nomor HP Pelanggan',
+                        hintText: destType == _DestType.meterOrId ? 'mis. 5312xxxxxxxx' : '08xxxxxxxxxx',
+                        prefixIcon: Icon(destType == _DestType.meterOrId ? Icons.bolt_outlined : Icons.sim_card_outlined),
+                        suffixIcon: destType == _DestType.phoneWithOperator && detectedOperator != null
+                            ? Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Chip(
+                                  label: Text(detectedOperator.label, style: const TextStyle(fontSize: 11, color: AppColors.emerald700)),
+                                  backgroundColor: AppColors.emerald100,
+                                  visualDensity: VisualDensity.compact,
+                                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                ),
+                              )
+                            : null,
+                      ),
+                    ),
             ),
             const SizedBox(height: 12),
             Expanded(
@@ -208,27 +252,26 @@ class _PulsaScreenState extends ConsumerState<PulsaScreen> {
                 data: (products) {
                   final byCategory = products.where((p) => p.category == _selectedCategory).toList();
 
-                  // Kategori nomor-HP: kalau nomor belum cukup panjang buat
-                  // dideteksi, JANGAN tampilkan produk campur semua operator
-                  // -- ini akar masalah yang bikin bingung sebelumnya.
-                  if (isPhoneBased && _destinationCtrl.text.trim().length < 4) {
-                    return const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(24),
-                        child: Text('Ketik nomor HP pelanggan dulu untuk lihat produk yang sesuai operatornya.', textAlign: TextAlign.center, style: TextStyle(color: AppColors.charcoal500)),
-                      ),
-                    );
-                  }
-                  if (isPhoneBased && detectedOperator == null) {
-                    return const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(24),
-                        child: Text('Operator tidak dikenali dari nomor ini. Periksa lagi nomornya.', textAlign: TextAlign.center, style: TextStyle(color: Colors.orange)),
-                      ),
-                    );
+                  if (destType == _DestType.phoneWithOperator) {
+                    if (_destinationCtrl.text.trim().length < 4) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Text('Ketik nomor HP pelanggan dulu untuk lihat produk yang sesuai operatornya.', textAlign: TextAlign.center, style: TextStyle(color: AppColors.charcoal500)),
+                        ),
+                      );
+                    }
+                    if (detectedOperator == null) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Text('Operator tidak dikenali dari nomor ini. Periksa lagi nomornya.', textAlign: TextAlign.center, style: TextStyle(color: Colors.orange)),
+                        ),
+                      );
+                    }
                   }
 
-                  final filtered = isPhoneBased
+                  final filtered = destType == _DestType.phoneWithOperator
                       ? byCategory.where((p) {
                           final opName = (p.operatorName ?? '').toLowerCase();
                           return detectedOperator!.matchKeywords.any((kw) => opName.contains(kw));
@@ -273,15 +316,63 @@ class _PulsaScreenState extends ConsumerState<PulsaScreen> {
     );
   }
 
+  Future<Map<String, dynamic>?> _tryCheckCustomer(BuildContext context, PpobProduct product) async {
+    final client = ref.read(supabaseClientProvider);
+    if (_destType == _DestType.meterOrId) {
+      final meterId = _destinationCtrl.text.trim();
+      if (meterId.length < 6) return null;
+      try {
+        final res = await client.functions.invoke('h2h-check-customer', body: {'type': 'pln', 'meter_id': meterId});
+        final data = res.data;
+        if (data is Map && data['ok'] == true) return {'label': 'Nama Pelanggan', 'value': '${data['name']} (${data['power']})'};
+      } catch (_) {
+        // Cek nama gagal (network/API down) -- non-blocking, tetap boleh lanjut beli.
+      }
+    } else if (_destType == _DestType.gameAccount) {
+      final gameSlug = _detectGameSlug(product);
+      final userId = _destinationCtrl.text.trim();
+      if (gameSlug == null || userId.length < 3) return null;
+      try {
+        final res = await client.functions.invoke('h2h-check-customer', body: {
+          'type': 'game',
+          'game': gameSlug,
+          'user_id': userId,
+          if (_zoneIdCtrl.text.trim().isNotEmpty) 'zone_id': _zoneIdCtrl.text.trim(),
+        });
+        final data = res.data;
+        if (data is Map && data['ok'] == true) return {'label': 'Nama Akun', 'value': data['username']};
+      } catch (_) {
+        // sama, non-blocking.
+      }
+    }
+    return null;
+  }
+
   Future<void> _confirmAndOrder(BuildContext context, PpobProduct product) async {
-    final destination = _destinationCtrl.text.trim();
-    final minLength = _isPhoneBasedCategory(_selectedCategory) ? 8 : 6;
-    if (destination.length < minLength) {
+    final isGame = _destType == _DestType.gameAccount;
+    final destination = isGame
+        ? (_zoneIdCtrl.text.trim().isNotEmpty ? '${_destinationCtrl.text.trim()}|${_zoneIdCtrl.text.trim()}' : _destinationCtrl.text.trim())
+        : _destinationCtrl.text.trim();
+    final minLength = _destType == _DestType.gameAccount ? 3 : (_destType == _DestType.meterOrId ? 6 : 8);
+    if (_destinationCtrl.text.trim().length < minLength) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Tujuan tidak valid')));
       return;
     }
     final staff = await ref.read(currentStaffProvider.future);
     if (staff == null || !context.mounted) return;
+
+    // Cek nama/akun dulu (opsional, non-blocking) buat PLN & game yang didukung.
+    Map<String, dynamic>? checkResult;
+    if (_destType == _DestType.meterOrId || _destType == _DestType.gameAccount) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const AlertDialog(backgroundColor: AppColors.surfaceElevated, content: Row(children: [CircularProgressIndicator(color: AppColors.emerald600), SizedBox(width: 16), Text('Mengecek data...')])),
+      );
+      checkResult = await _tryCheckCustomer(context, product);
+      if (context.mounted) Navigator.pop(context);
+    }
+    if (!context.mounted) return;
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -293,6 +384,13 @@ class _PulsaScreenState extends ConsumerState<PulsaScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Tujuan: $destination', style: const TextStyle(color: AppColors.charcoal700)),
+            if (checkResult != null) ...[
+              const SizedBox(height: 4),
+              Text('${checkResult['label']}: ${checkResult['value']}', style: const TextStyle(color: AppColors.emerald600, fontWeight: FontWeight.w600)),
+            ] else if (_destType == _DestType.meterOrId || _destType == _DestType.gameAccount) ...[
+              const SizedBox(height: 4),
+              const Text('Nama tidak bisa diverifikasi -- pastikan tujuan sudah benar.', style: TextStyle(color: Colors.orange, fontSize: 12)),
+            ],
             const SizedBox(height: 4),
             Text('Harga jual: ${Formatters.rupiah(product.sellPrice)}', style: const TextStyle(color: AppColors.charcoal700)),
           ],
