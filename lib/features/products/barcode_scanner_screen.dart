@@ -19,7 +19,12 @@ class BarcodeScannerScreen extends StatefulWidget {
 enum _PermissionState { checking, granted, denied, permanentlyDenied }
 
 class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
-  final controller = MobileScannerController();
+  // BarcodeFormat.all (BUKAN BarcodeFormat.values -- itu termasuk nilai
+  // sentinel 'unknown' yang bukan format asli, campur sama daftar format
+  // individual bisa bikin rancu/error) -- konstanta resmi yang artinya
+  // semua format didukung: QR Code, EAN-13/8 (barcode retail standar),
+  // UPC-A/E, Code 128/39/93, ITF, Codabar, PDF417, Aztec, Data Matrix.
+  final controller = MobileScannerController(formats: [BarcodeFormat.all]);
   bool _cooldown = false;
   String? _lastCode;
   _PermissionState _permission = _PermissionState.checking;
@@ -151,6 +156,28 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
                     '${error.errorDetails?.message != null ? '\n${error.errorDetails!.message}' : ''}',
                 buttonLabel: 'Coba Lagi',
                 onPressed: _retryStartCamera,
+              ),
+            ),
+            // Overlay gelap di luar kotak scan (bukan cuma kotak polos di
+            // atas kamera terang benderang tanpa mask -- itu yang bikin
+            // tampilan sebelumnya kelihatan mentah/gak profesional).
+            // ColorFiltered + custom clipper "lubangi" area kotak scan
+            // biar cuma situ yang terang, sisanya digelapkan.
+            IgnorePointer(
+              child: ColorFiltered(
+                colorFilter: ColorFilter.mode(Colors.black.withValues(alpha: 0.55), BlendMode.srcOut),
+                child: Stack(
+                  children: [
+                    Container(decoration: const BoxDecoration(color: Colors.black, backgroundBlendMode: BlendMode.dstOut)),
+                    Center(
+                      child: Container(
+                        width: 280,
+                        height: 150,
+                        decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(16)),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
             Center(

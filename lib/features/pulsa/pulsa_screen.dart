@@ -6,6 +6,7 @@ import '../../core/providers/supabase_provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/operator_detector.dart';
+import '../../core/utils/product_info_parser.dart';
 import '../../models/ppob_product.dart';
 
 // Fitur ini SENGAJA menu terpisah dari POS/Beranda -- alurnya beda: pilih
@@ -116,6 +117,16 @@ class PulsaScreen extends ConsumerStatefulWidget {
 }
 
 class _PulsaScreenState extends ConsumerState<PulsaScreen> {
+  Widget _infoBadge(IconData icon, String label) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(color: AppColors.emerald50, borderRadius: BorderRadius.circular(6), border: Border.all(color: AppColors.emerald200, width: 0.5)),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 10, color: AppColors.emerald600),
+          const SizedBox(width: 3),
+          Text(label, style: const TextStyle(fontSize: 10, color: AppColors.emerald700, fontWeight: FontWeight.w600)),
+        ]),
+      );
+
   String _selectedCategory = 'pulsa';
   final _destinationCtrl = TextEditingController();
   final _zoneIdCtrl = TextEditingController();
@@ -312,17 +323,45 @@ class _PulsaScreenState extends ConsumerState<PulsaScreen> {
                     separatorBuilder: (_, __) => const SizedBox(height: 8),
                     itemBuilder: (context, i) {
                       final p = filtered[i];
+                      final info = parseProductInfo(p.name);
                       return Container(
                         decoration: BoxDecoration(
                           color: AppColors.surface,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(color: AppColors.border),
                         ),
-                        child: ListTile(
-                          title: Text(p.name, style: const TextStyle(color: AppColors.charcoal900, fontWeight: FontWeight.w600)),
-                          subtitle: p.operatorName != null ? Text(p.operatorName!, style: const TextStyle(color: AppColors.charcoal500, fontSize: 12)) : null,
-                          trailing: Text(Formatters.rupiah(p.sellPrice), style: const TextStyle(color: AppColors.emerald600, fontWeight: FontWeight.bold)),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(12),
                           onTap: () => _confirmAndOrder(context, p),
+                          child: Padding(
+                            padding: const EdgeInsets.all(14),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(p.name, style: const TextStyle(color: AppColors.charcoal900, fontWeight: FontWeight.w600, fontSize: 13.5)),
+                                      if (p.operatorName != null) ...[
+                                        const SizedBox(height: 2),
+                                        Text(p.operatorName!, style: const TextStyle(color: AppColors.charcoal500, fontSize: 11.5)),
+                                      ],
+                                      if (info.hasAny) ...[
+                                        const SizedBox(height: 6),
+                                        Wrap(spacing: 6, runSpacing: 4, children: [
+                                          if (info.quota != null) _infoBadge(Icons.sim_card_outlined, info.quota!),
+                                          if (info.validity != null) _infoBadge(Icons.event_available_outlined, info.validity!),
+                                          if (info.bonusCount > 0) _infoBadge(Icons.add_circle_outline, '+${info.bonusCount} bonus'),
+                                        ]),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(Formatters.rupiah(p.sellPrice), style: const TextStyle(color: AppColors.emerald600, fontWeight: FontWeight.bold, fontSize: 13.5)),
+                              ],
+                            ),
+                          ),
                         ),
                       );
                     },

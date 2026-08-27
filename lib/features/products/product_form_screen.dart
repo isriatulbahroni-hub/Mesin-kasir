@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 import '../../core/theme/app_colors.dart';
 import '../inventory/providers/inventory_provider.dart';
@@ -42,7 +44,44 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     final code = await Navigator.push<String>(context, MaterialPageRoute(builder: (_) => const BarcodeScannerScreen()));
     if (!mounted || code == null || code.isEmpty) return;
     setState(() => _skuCtrl.text = code);
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Barcode $code dimasukkan sebagai SKU.')));
+
+    // Lookup otomatis ke Open Food Facts (database barcode terbuka, gratis,
+    // gak perlu API key) -- biar nama produk gak perlu diketik manual kalau
+    // barcode-nya udah terdaftar di sana (kebanyakan produk retail/grocery
+    // yang beredar umum sudah ada). Gagal/gak ketemu = fallback diam-diam,
+    // tetap isi SKU aja seperti sebelumnya, gak ganggu alur kalau offline.
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Barcode $code -- mencari info produk...'), duration: const Duration(seconds: 2)));
+    try {
+      final uri = Uri.parse('https://world.openfoodfacts.org/api/v2/product/$code.json?fields=product_name,brands');
+      final res = await http.get(uri, headers: {'User-Agent': 'KasirPro/1.0 (kasirpro-app)'}).timeout(const Duration(seconds: 6));
+      if (!mounted) return;
+      if (res.statusCode == 200) {
+        final json = jsonDecode(res.body) as Map<String, dynamic>;
+        if (json['status'] == 1) {
+          final product = json['product'] as Map<String, dynamic>?;
+          final name = (product?['product_name'] as String?)?.trim();
+          if (name != null && name.isNotEmpty) {
+            // Jangan timpa nama yang sudah diketik user -- cuma auto-isi
+            // kalau field-nya masih kosong.
+            if (_nameCtrl.text.trim().isEmpty) {
+              setState(() => _nameCtrl.text = name);
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ditemukan: $name — nama produk terisi otomatis.')));
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ditemukan: $name (nama produk tidak ditimpa karena sudah diisi).')));
+            }
+            return;
+          }
+        }
+      }
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Barcode $code dimasukkan sebagai SKU (produk tidak ditemukan di database, isi nama manual).')));
+    } catch (_) {
+      // Timeout/offline/dst -- diam-diam gagal, SKU tetap kesimpen, gak
+      // ganggu alur kasir yang lagi buru-buru nambah produk.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Barcode $code dimasukkan sebagai SKU (lookup online gagal, isi nama manual).')));
+      }
+    }
   }
 
   @override
